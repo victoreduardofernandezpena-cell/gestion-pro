@@ -1,0 +1,27 @@
+import { Router } from "express";
+import {
+  cancelInvoice,
+  createInvoice,
+  deleteInvoice,
+  getInvoice,
+  listInvoices,
+  updateInvoice
+} from "../controllers/invoiceController.js";
+import { createInvoicePayment, listInvoicePayments } from "../controllers/paymentController.js";
+import { authenticate } from "../middleware/authMiddleware.js";
+import { authorizeRoles } from "../middleware/roleMiddleware.js";
+
+const router = Router();
+
+router.use(authenticate);
+
+router.get("/", authorizeRoles("admin", "ventas", "contabilidad"), listInvoices);
+router.get("/:id", authorizeRoles("admin", "ventas", "contabilidad"), getInvoice);
+router.post("/", authorizeRoles("admin", "ventas"), createInvoice);
+router.put("/:id", authorizeRoles("admin", "ventas"), updateInvoice);
+router.delete("/:id", authorizeRoles("admin"), deleteInvoice);
+router.patch("/:id/cancel", authorizeRoles("admin", "ventas"), cancelInvoice);
+router.get("/:id/payments", authorizeRoles("admin", "ventas", "contabilidad"), listInvoicePayments);
+router.post("/:id/payments", authorizeRoles("admin", "ventas", "contabilidad"), createInvoicePayment);
+
+export default router;
