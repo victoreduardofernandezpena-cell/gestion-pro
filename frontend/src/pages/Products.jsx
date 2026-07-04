@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Edit2, Plus, Search, Trash2 } from "lucide-react";
+import { Barcode, Boxes, DollarSign, Edit2, PackagePlus, Plus, Search, Trash2 } from "lucide-react";
 import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
 import AlertMessage from "../components/AlertMessage";
+import Button from "../components/Button";
 import DataTable from "../components/DataTable";
 import FormField from "../components/FormField";
 import { getErrorMessage } from "../utils/errors";
@@ -66,6 +67,16 @@ export default function Products() {
     }
   };
 
+  const productFields = [
+    { key: "code", label: "Codigo", icon: Barcode, required: true },
+    { key: "name", label: "Nombre del item", icon: PackagePlus, required: true },
+    { key: "description", label: "Descripcion", full: true },
+    { key: "cost", label: "Costo", icon: DollarSign, type: "number", required: true },
+    { key: "price", label: "Precio de venta", icon: DollarSign, type: "number", required: true },
+    { key: "stock", label: "Stock inicial", icon: Boxes, type: "number" },
+    { key: "minimumStock", label: "Stock minimo", icon: Boxes, type: "number" }
+  ];
+
   const columns = [
     { key: "code", header: "Codigo", className: "font-medium" },
     { key: "name", header: "Producto" },
@@ -101,22 +112,49 @@ export default function Products() {
       <AlertMessage>{error}</AlertMessage>
 
       <section className="grid gap-6 xl:grid-cols-[380px_1fr]">
-        <form onSubmit={submit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-          <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Plus size={18} />{editingId ? "Editar producto" : "Crear producto"}</h2>
-          {["code", "name", "description", "cost", "price", "stock", "minimumStock"].map((field) => (
-            <FormField
-              key={field}
-              label={field}
-              value={form[field]}
-              type={["cost", "price", "stock", "minimumStock"].includes(field) ? "number" : "text"}
-              min={0}
-              onChange={(value) => setForm({ ...form, [field]: value })}
-              required={["code", "name", "cost", "price"].includes(field)}
-            />
-          ))}
-          <div className="flex gap-2">
-            <button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? "Guardando..." : "Guardar"}</button>
-            {editingId && <button type="button" onClick={() => { setEditingId(null); setForm(emptyProduct); }} className="rounded-lg border border-slate-300 px-4 py-2">Cancelar</button>}
+        <form onSubmit={submit} className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-soft">
+          <div className="border-b border-slate-200 bg-slate-50/80 px-5 py-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-accent">{editingId ? "Actualizacion" : "Nuevo item"}</p>
+            <h2 className="mt-1 flex items-center gap-2 text-lg font-semibold text-slate-950">
+              <PackagePlus size={19} />
+              {editingId ? "Editar producto" : "Crear nuevo item"}
+            </h2>
+          </div>
+
+          <div className="space-y-4 p-5">
+            {productFields.map(({ key, label, icon: Icon, type = "text", required, full }) => (
+              <div key={key} className={full ? "border-t border-slate-100 pt-4" : ""}>
+                <div className="flex items-start gap-3">
+                  {Icon && (
+                    <span className="mt-7 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                      <Icon size={17} />
+                    </span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <FormField
+                      label={label}
+                      value={form[key]}
+                      type={type}
+                      min={0}
+                      as={key === "description" ? "textarea" : "input"}
+                      onChange={(value) => setForm({ ...form, [key]: value })}
+                      required={required}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
+              <Button type="submit" loading={saving} icon={Plus} className="sm:flex-1">
+                {editingId ? "Guardar cambios" : "Guardar item"}
+              </Button>
+              {editingId && (
+                <Button type="button" variant="outline" onClick={() => { setEditingId(null); setForm(emptyProduct); }}>
+                  Cancelar
+                </Button>
+              )}
+            </div>
           </div>
         </form>
 
