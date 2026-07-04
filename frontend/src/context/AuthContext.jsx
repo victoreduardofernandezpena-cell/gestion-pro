@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState } from "react";
-import { loginRequest } from "../services/authService";
+import { loginRequest, registerRequest } from "../services/authService";
 
 const AuthContext = createContext(null);
 
@@ -20,6 +20,17 @@ export function AuthProvider({ children }) {
 
   const login = async (credentials) => {
     const data = await loginRequest(credentials);
+    localStorage.setItem("erp_token", data.token);
+    localStorage.setItem("erp_user", JSON.stringify(data.user));
+    localStorage.setItem("erp_company", JSON.stringify(data.company));
+    setToken(data.token);
+    setUser(data.user);
+    setCompany(data.company);
+    return data.user;
+  };
+
+  const register = async (payload) => {
+    const data = await registerRequest(payload);
     localStorage.setItem("erp_token", data.token);
     localStorage.setItem("erp_user", JSON.stringify(data.user));
     localStorage.setItem("erp_company", JSON.stringify(data.company));
@@ -57,6 +68,7 @@ export function AuthProvider({ children }) {
       role: user?.role,
       isAuthenticated: Boolean(token && user && company),
       login,
+      register,
       logout,
       updateStoredUser,
       markPasswordChanged

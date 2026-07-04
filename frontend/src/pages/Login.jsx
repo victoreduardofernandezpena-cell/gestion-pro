@@ -6,9 +6,10 @@ import ThemeToggle from "../components/ThemeToggle";
 import { getErrorMessage } from "../utils/errors";
 
 export default function Login() {
-  const { login, isAuthenticated, user } = useAuth();
+  const { login, register, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
-  const [form, setForm] = useState({ email: "", password: "", companyCode: "" });
+  const [mode, setMode] = useState("login");
+  const [form, setForm] = useState({ name: "", email: "", password: "", companyName: "", companyCode: "" });
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +20,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      const user = await login(form);
+      const user = mode === "login" ? await login(form) : await register(form);
       navigate(user.mustChangePassword ? "/cambiar-contrasena-obligatorio" : "/");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible iniciar sesion"));
@@ -57,11 +58,27 @@ export default function Login() {
         <form onSubmit={handleSubmit} className="w-full max-w-md rounded-lg border border-slate-200 bg-white p-8 shadow-soft transition-colors duration-200 dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-8">
             <p className="text-sm font-medium text-accent">Acceso seguro</p>
-            <h2 className="mt-2 text-3xl font-semibold text-slate-950 dark:text-slate-100">Iniciar sesion</h2>
+            <h2 className="mt-2 text-3xl font-semibold text-slate-950 dark:text-slate-100">{mode === "login" ? "Iniciar sesion" : "Crear cuenta"}</h2>
+          </div>
+          <div className="mb-5 grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-sm font-semibold dark:bg-slate-800">
+            <button type="button" onClick={() => { setMode("login"); setError(""); }} className={`rounded-md px-3 py-2 ${mode === "login" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500"}`}>Entrar</button>
+            <button type="button" onClick={() => { setMode("register"); setError(""); }} className={`rounded-md px-3 py-2 ${mode === "register" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500"}`}>Registrarse</button>
           </div>
           <div className="mb-4">
             <AlertMessage>{error}</AlertMessage>
           </div>
+          {mode === "register" && (
+            <label className="mb-4 block">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition-colors duration-200 focus:border-accent dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                value={form.name}
+                onChange={(event) => setForm({ ...form, name: event.target.value })}
+                type="text"
+                required
+              />
+            </label>
+          )}
           <label className="mb-4 block">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Email</span>
             <input
@@ -82,6 +99,18 @@ export default function Login() {
               required
             />
           </label>
+          {mode === "register" && (
+            <label className="mb-4 block">
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre de empresa</span>
+              <input
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 outline-none transition-colors duration-200 focus:border-accent dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
+                value={form.companyName}
+                onChange={(event) => setForm({ ...form, companyName: event.target.value })}
+                type="text"
+                required
+              />
+            </label>
+          )}
           <label className="mb-6 block">
             <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Codigo de compania</span>
             <input
@@ -94,7 +123,7 @@ export default function Login() {
             />
           </label>
           <button disabled={loading} className="w-full rounded-lg bg-accent px-4 py-3 font-semibold text-white disabled:opacity-60">
-            {loading ? "Validando..." : "Entrar"}
+            {loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
           </button>
         </form>
       </section>

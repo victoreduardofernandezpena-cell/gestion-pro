@@ -5,6 +5,11 @@ export const loginRequest = async (credentials) => {
   return data;
 };
 
+export const registerRequest = async (payload) => {
+  const { data } = await api.post("/auth/register", payload);
+  return data;
+};
+
 export const profileRequest = async () => {
   const { data } = await api.get("/auth/profile");
   return data;

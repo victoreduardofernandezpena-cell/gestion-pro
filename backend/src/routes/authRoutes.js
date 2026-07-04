@@ -1,6 +1,6 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
-import { changeForcedPassword, login, profile } from "../controllers/authController.js";
+import { changeForcedPassword, login, profile, register } from "../controllers/authController.js";
 import { authenticate } from "../middleware/authMiddleware.js";
 
 const router = Router();
@@ -14,6 +14,7 @@ const loginLimiter = rateLimit({
 const loginMiddlewares = process.env.DISABLE_LOGIN_RATE_LIMIT === "true" ? [] : [loginLimiter];
 
 router.post("/login", ...loginMiddlewares, login);
+router.post("/register", ...loginMiddlewares, register);
 router.get("/profile", authenticate, profile);
 router.patch("/change-forced-password", authenticate, changeForcedPassword);
 
