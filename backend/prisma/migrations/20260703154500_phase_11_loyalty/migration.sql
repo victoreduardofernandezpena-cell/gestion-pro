@@ -2,13 +2,13 @@
 CREATE TYPE "LoyaltyTransactionType" AS ENUM ('EARNED', 'REDEEMED', 'ADJUSTMENT', 'CANCELLED');
 
 -- DropIndex
-DROP INDEX "NumberingSetting_documentType_isActive_idx";
+DROP INDEX IF EXISTS "NumberingSetting_documentType_isActive_idx";
 
 -- DropIndex
-DROP INDEX "SystemCategory_type_name_isActive_idx";
+DROP INDEX IF EXISTS "SystemCategory_type_name_isActive_idx";
 
 -- DropIndex
-DROP INDEX "TaxSetting_name_isActive_idx";
+DROP INDEX IF EXISTS "TaxSetting_name_isActive_idx";
 
 -- AlterTable
 ALTER TABLE "Invoice" ADD COLUMN     "loyaltyDiscount" DECIMAL(12,2) NOT NULL DEFAULT 0;
