@@ -1,5 +1,7 @@
 import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const txDate = (value) => {
   const date = value ? new Date(value) : new Date();
@@ -10,7 +12,7 @@ const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 10
 
 export const listBankAccounts = async (req, res, next) => {
   try {
-    const accounts = await prisma.bankAccount.findMany({ orderBy: { createdAt: "desc" } });
+    const accounts = await prisma.bankAccount.findMany({ where: { companyId: requireCompanyId(req) }, orderBy: { createdAt: "desc" } });
     res.json(accounts);
   } catch (error) {
     next(error);
@@ -22,8 +24,8 @@ export const getBankAccount = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de cuenta bancaria invalido" });
     const account = await prisma.bankAccount.findUnique({
-      where: { id },
-      include: { transactions: { orderBy: { transactionDate: "desc" } } }
+      where: { id, companyId: requireCompanyId(req) },
+      include: { transactions: { where: { companyId: requireCompanyId(req) }, orderBy: { transactionDate: "desc" } } }
     });
     if (!account) return res.status(404).json({ message: "Cuenta bancaria no encontrada" });
     res.json(account);
@@ -42,6 +44,7 @@ export const createBankAccount = async (req, res, next) => {
 
     const account = await prisma.bankAccount.create({
       data: {
+        companyId: requireCompanyId(req),
         name: name.trim(),
         bankName: bankName.trim(),
         accountNumber: accountNumber || null,
@@ -64,6 +67,8 @@ export const updateBankAccount = async (req, res, next) => {
     const { name, bankName, accountNumber, currency, isActive } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "El nombre es requerido" });
     if (!bankName?.trim()) return res.status(400).json({ message: "El banco es requerido" });
+    const existing = await prisma.bankAccount.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Cuenta bancaria no encontrada" });
     const account = await prisma.bankAccount.update({
       where: { id },
       data: { name: name.trim(), bankName: bankName.trim(), accountNumber: accountNumber || null, currency: currency || "DOP", isActive: isActive ?? true }
@@ -79,7 +84,10 @@ export const deleteBankAccount = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de cuenta bancaria invalido" });
-    const count = await prisma.bankTransaction.count({ where: { bankAccountId: id } });
+    const companyId = requireCompanyId(req);
+    const existing = await prisma.bankAccount.findFirst({ where: { id, companyId } });
+    if (!existing) return res.status(404).json({ message: "Cuenta bancaria no encontrada" });
+    const count = await prisma.bankTransaction.count({ where: { bankAccountId: id, companyId } });
     if (count > 0) {
       const account = await prisma.bankAccount.update({ where: { id }, data: { isActive: false } });
       return res.json({ message: "Cuenta bancaria desactivada por tener movimientos asociados", account });
@@ -95,6 +103,7 @@ export const deleteBankAccount = async (req, res, next) => {
 export const listBankTransactions = async (req, res, next) => {
   try {
     const transactions = await prisma.bankTransaction.findMany({
+      where: { companyId: requireCompanyId(req) },
       include: { bankAccount: { select: { id: true, name: true, bankName: true } } },
       orderBy: { transactionDate: "desc" }
     });
@@ -108,16 +117,17 @@ export const listAccountTransactions = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de cuenta bancaria invalido" });
-    const transactions = await prisma.bankTransaction.findMany({ where: { bankAccountId: id }, orderBy: { transactionDate: "desc" } });
+    const transactions = await prisma.bankTransaction.findMany({ where: { bankAccountId: id, companyId: requireCompanyId(req) }, orderBy: { transactionDate: "desc" } });
     res.json(transactions);
   } catch (error) {
     next(error);
   }
 };
 
-const createAccountMovement = async ({ id, type, amount, description, reference, transactionDate }) => {
+const createAccountMovement = async ({ req, id, type, amount, description, reference, transactionDate }) => {
   return prisma.$transaction(async (tx) => {
-    const account = await tx.bankAccount.findUnique({ where: { id } });
+    const companyId = requireCompanyId(req);
+    const account = await tx.bankAccount.findFirst({ where: { id, companyId } });
     if (!account || !account.isActive) {
       const error = new Error("Cuenta bancaria no encontrada o inactiva");
       error.status = 404;
@@ -131,7 +141,7 @@ const createAccountMovement = async ({ id, type, amount, description, reference,
     }
     const updated = await tx.bankAccount.update({ where: { id }, data: { currentBalance: money(nextBalance) } });
     const transaction = await tx.bankTransaction.create({
-      data: { bankAccountId: id, type, amount, description, reference, transactionDate }
+      data: { companyId, bankAccountId: id, type, amount, description, reference, transactionDate }
     });
     return { account: updated, transaction };
   }, { isolationLevel: "Serializable" });
@@ -145,8 +155,9 @@ export const deposit = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de cuenta bancaria invalido" });
     if (Number.isNaN(amount) || amount <= 0) return res.status(400).json({ message: "El monto debe ser mayor que cero" });
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
-    const result = await createAccountMovement({ id, type: "DEPOSIT", amount, description: req.body.description || "Deposito", reference: req.body.reference || null, transactionDate });
+    const result = await createAccountMovement({ req, id, type: "DEPOSIT", amount, description: req.body.description || "Deposito", reference: req.body.reference || null, transactionDate });
     res.status(201).json(result);
+    await createAuditLog({ action: "BANK_TRANSACTION_CREATED", module: "BANCO", entityType: "BankTransaction", entityId: result.transaction.id, description: `Deposito por ${amount}`, req });
   } catch (error) {
     next(error);
   }
@@ -160,8 +171,9 @@ export const withdraw = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de cuenta bancaria invalido" });
     if (Number.isNaN(amount) || amount <= 0) return res.status(400).json({ message: "El monto debe ser mayor que cero" });
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
-    const result = await createAccountMovement({ id, type: "WITHDRAWAL", amount, description: req.body.description || "Retiro", reference: req.body.reference || null, transactionDate });
+    const result = await createAccountMovement({ req, id, type: "WITHDRAWAL", amount, description: req.body.description || "Retiro", reference: req.body.reference || null, transactionDate });
     res.status(201).json(result);
+    await createAuditLog({ action: "BANK_TRANSACTION_CREATED", module: "BANCO", entityType: "BankTransaction", entityId: result.transaction.id, description: `Retiro por ${amount}`, req });
   } catch (error) {
     next(error);
   }
@@ -179,9 +191,10 @@ export const transfer = async (req, res, next) => {
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
 
     const result = await prisma.$transaction(async (tx) => {
+      const companyId = requireCompanyId(req);
       const [from, to] = await Promise.all([
-        tx.bankAccount.findUnique({ where: { id: fromBankAccountId } }),
-        tx.bankAccount.findUnique({ where: { id: toBankAccountId } })
+        tx.bankAccount.findFirst({ where: { id: fromBankAccountId, companyId } }),
+        tx.bankAccount.findFirst({ where: { id: toBankAccountId, companyId } })
       ]);
       if (!from || !to || !from.isActive || !to.isActive) {
         const error = new Error("Cuenta bancaria no encontrada o inactiva");
@@ -197,11 +210,12 @@ export const transfer = async (req, res, next) => {
       const toAccount = await tx.bankAccount.update({ where: { id: toBankAccountId }, data: { currentBalance: money(Number(to.currentBalance) + amount) } });
       const description = req.body.description || `Transferencia a ${to.name}`;
       const reference = req.body.reference || null;
-      const outTransaction = await tx.bankTransaction.create({ data: { bankAccountId: fromBankAccountId, type: "TRANSFER_OUT", amount, description, reference, transactionDate } });
-      const inTransaction = await tx.bankTransaction.create({ data: { bankAccountId: toBankAccountId, type: "TRANSFER_IN", amount, description: req.body.description || `Transferencia desde ${from.name}`, reference, transactionDate } });
+      const outTransaction = await tx.bankTransaction.create({ data: { companyId, bankAccountId: fromBankAccountId, type: "TRANSFER_OUT", amount, description, reference, transactionDate } });
+      const inTransaction = await tx.bankTransaction.create({ data: { companyId, bankAccountId: toBankAccountId, type: "TRANSFER_IN", amount, description: req.body.description || `Transferencia desde ${from.name}`, reference, transactionDate } });
       return { fromAccount, toAccount, outTransaction, inTransaction };
     }, { isolationLevel: "Serializable" });
     res.status(201).json(result);
+    await createAuditLog({ action: "BANK_TRANSACTION_CREATED", module: "BANCO", entityType: "BankTransaction", entityId: result.outTransaction.id, description: `Transferencia bancaria por ${amount}`, req });
   } catch (error) {
     next(error);
   }

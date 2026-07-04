@@ -1,5 +1,7 @@
 import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const clientSelect = {
   id: true,
@@ -15,16 +17,20 @@ const clientSelect = {
 export const listClients = async (req, res, next) => {
   try {
     const search = req.query.search?.trim();
+    const companyId = requireCompanyId(req);
     const clients = await prisma.client.findMany({
-      where: search
-        ? {
+      where: {
+        companyId,
+        ...(search
+          ? {
             OR: [
               { name: { contains: search, mode: "insensitive" } },
               { rnc: { contains: search, mode: "insensitive" } },
               { phone: { contains: search, mode: "insensitive" } }
             ]
           }
-        : undefined,
+          : {})
+      },
       select: clientSelect,
       orderBy: { createdAt: "desc" }
     });
@@ -40,8 +46,8 @@ export const getClient = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de cliente invalido" });
 
-    const client = await prisma.client.findUnique({
-      where: { id },
+    const client = await prisma.client.findFirst({
+      where: { id, companyId: requireCompanyId(req) },
       select: clientSelect
     });
 
@@ -64,9 +70,10 @@ export const createClient = async (req, res, next) => {
     }
 
     const client = await prisma.client.create({
-      data: { name: name.trim(), rnc, phone, email, address },
+      data: { companyId: requireCompanyId(req), name: name.trim(), rnc, phone, email, address },
       select: clientSelect
     });
+    await createAuditLog({ action: "CLIENT_CREATED", module: "CLIENTES", entityType: "Client", entityId: client.id, description: `Cliente creado: ${client.name}`, req });
 
     res.status(201).json(client);
   } catch (error) {
@@ -88,11 +95,15 @@ export const updateClient = async (req, res, next) => {
       return res.status(400).json({ message: "El nombre es requerido" });
     }
 
+    const existing = await prisma.client.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Cliente no encontrado" });
+
     const client = await prisma.client.update({
       where: { id },
       data: { name: name.trim(), rnc, phone, email, address },
       select: clientSelect
     });
+    await createAuditLog({ action: "CLIENT_UPDATED", module: "CLIENTES", entityType: "Client", entityId: client.id, description: `Cliente actualizado: ${client.name}`, req });
 
     res.json(client);
   } catch (error) {
@@ -111,7 +122,11 @@ export const deleteClient = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de cliente invalido" });
 
+    const existing = await prisma.client.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Cliente no encontrado" });
+
     await prisma.client.delete({ where: { id } });
+    await createAuditLog({ action: "CLIENT_DELETED", module: "CLIENTES", entityType: "Client", entityId: id, description: "Cliente eliminado", req });
     sendDeleted(res, "Cliente");
   } catch (error) {
     if (error.code === "P2025") {

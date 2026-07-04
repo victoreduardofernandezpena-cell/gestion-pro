@@ -1,5 +1,7 @@
 import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const txDate = (value) => {
   const date = value ? new Date(value) : new Date();
@@ -9,7 +11,7 @@ const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 10
 
 export const listCashBoxes = async (req, res, next) => {
   try {
-    res.json(await prisma.cashBox.findMany({ orderBy: { createdAt: "desc" } }));
+    res.json(await prisma.cashBox.findMany({ where: { companyId: requireCompanyId(req) }, orderBy: { createdAt: "desc" } }));
   } catch (error) {
     next(error);
   }
@@ -19,7 +21,7 @@ export const getCashBox = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
-    const cashBox = await prisma.cashBox.findUnique({ where: { id }, include: { transactions: { orderBy: { transactionDate: "desc" } } } });
+    const cashBox = await prisma.cashBox.findFirst({ where: { id, companyId: requireCompanyId(req) }, include: { transactions: { where: { companyId: requireCompanyId(req) }, orderBy: { transactionDate: "desc" } } } });
     if (!cashBox) return res.status(404).json({ message: "Caja chica no encontrada" });
     res.json(cashBox);
   } catch (error) {
@@ -33,7 +35,7 @@ export const createCashBox = async (req, res, next) => {
     const initialBalance = Number(req.body.initialBalance || 0);
     if (!name?.trim()) return res.status(400).json({ message: "El nombre es requerido" });
     if (Number.isNaN(initialBalance) || initialBalance < 0) return res.status(400).json({ message: "El balance inicial no puede ser negativo" });
-    const cashBox = await prisma.cashBox.create({ data: { name: name.trim(), description: description || null, initialBalance, currentBalance: initialBalance, isActive: true } });
+    const cashBox = await prisma.cashBox.create({ data: { companyId: requireCompanyId(req), name: name.trim(), description: description || null, initialBalance, currentBalance: initialBalance, isActive: true } });
     res.status(201).json(cashBox);
   } catch (error) {
     next(error);
@@ -46,6 +48,8 @@ export const updateCashBox = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
     const { name, description, isActive } = req.body;
     if (!name?.trim()) return res.status(400).json({ message: "El nombre es requerido" });
+    const existing = await prisma.cashBox.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Caja chica no encontrada" });
     const cashBox = await prisma.cashBox.update({ where: { id }, data: { name: name.trim(), description: description || null, isActive: isActive ?? true } });
     res.json(cashBox);
   } catch (error) {
@@ -58,7 +62,10 @@ export const deleteCashBox = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
-    const count = await prisma.cashTransaction.count({ where: { cashBoxId: id } });
+    const companyId = requireCompanyId(req);
+    const existing = await prisma.cashBox.findFirst({ where: { id, companyId } });
+    if (!existing) return res.status(404).json({ message: "Caja chica no encontrada" });
+    const count = await prisma.cashTransaction.count({ where: { cashBoxId: id, companyId } });
     if (count > 0) {
       const cashBox = await prisma.cashBox.update({ where: { id }, data: { isActive: false } });
       return res.json({ message: "Caja chica desactivada por tener movimientos asociados", cashBox });
@@ -75,15 +82,16 @@ export const listCashTransactions = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
-    res.json(await prisma.cashTransaction.findMany({ where: { cashBoxId: id }, orderBy: { transactionDate: "desc" } }));
+    res.json(await prisma.cashTransaction.findMany({ where: { cashBoxId: id, companyId: requireCompanyId(req) }, orderBy: { transactionDate: "desc" } }));
   } catch (error) {
     next(error);
   }
 };
 
-const createCashMovement = async ({ id, type, amount, description, reference, transactionDate, nextBalanceOverride }) => {
+const createCashMovement = async ({ req, id, type, amount, description, reference, transactionDate, nextBalanceOverride }) => {
   return prisma.$transaction(async (tx) => {
-    const cashBox = await tx.cashBox.findUnique({ where: { id } });
+    const companyId = requireCompanyId(req);
+    const cashBox = await tx.cashBox.findFirst({ where: { id, companyId } });
     if (!cashBox || !cashBox.isActive) {
       const error = new Error("Caja chica no encontrada o inactiva");
       error.status = 404;
@@ -96,7 +104,7 @@ const createCashMovement = async ({ id, type, amount, description, reference, tr
       throw error;
     }
     const updated = await tx.cashBox.update({ where: { id }, data: { currentBalance: money(nextBalance) } });
-    const transaction = await tx.cashTransaction.create({ data: { cashBoxId: id, type, amount, description, reference, transactionDate } });
+    const transaction = await tx.cashTransaction.create({ data: { companyId, cashBoxId: id, type, amount, description, reference, transactionDate } });
     return { cashBox: updated, transaction };
   }, { isolationLevel: "Serializable" });
 };
@@ -109,7 +117,9 @@ export const cashIn = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
     if (Number.isNaN(amount) || amount <= 0) return res.status(400).json({ message: "El monto debe ser mayor que cero" });
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
-    res.status(201).json(await createCashMovement({ id, type: "CASH_IN", amount, description: req.body.description || "Entrada de caja", reference: req.body.reference || null, transactionDate }));
+    const result = await createCashMovement({ req, id, type: "CASH_IN", amount, description: req.body.description || "Entrada de caja", reference: req.body.reference || null, transactionDate });
+    res.status(201).json(result);
+    await createAuditLog({ action: "CASH_TRANSACTION_CREATED", module: "CAJA_CHICA", entityType: "CashTransaction", entityId: result.transaction.id, description: `Entrada de caja por ${amount}`, req });
   } catch (error) {
     next(error);
   }
@@ -123,7 +133,9 @@ export const cashOut = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
     if (Number.isNaN(amount) || amount <= 0) return res.status(400).json({ message: "El monto debe ser mayor que cero" });
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
-    res.status(201).json(await createCashMovement({ id, type: "CASH_OUT", amount, description: req.body.description || "Salida de caja", reference: req.body.reference || null, transactionDate }));
+    const result = await createCashMovement({ req, id, type: "CASH_OUT", amount, description: req.body.description || "Salida de caja", reference: req.body.reference || null, transactionDate });
+    res.status(201).json(result);
+    await createAuditLog({ action: "CASH_TRANSACTION_CREATED", module: "CAJA_CHICA", entityType: "CashTransaction", entityId: result.transaction.id, description: `Salida de caja por ${amount}`, req });
   } catch (error) {
     next(error);
   }
@@ -139,10 +151,12 @@ export const adjustment = async (req, res, next) => {
     if (!reason) return res.status(400).json({ message: "La razon es obligatoria para ajustes" });
     if (Number.isNaN(newBalance) || newBalance < 0) return res.status(400).json({ message: "El nuevo balance no puede ser negativo" });
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
-    const current = await prisma.cashBox.findUnique({ where: { id } });
+    const current = await prisma.cashBox.findFirst({ where: { id, companyId: requireCompanyId(req) } });
     if (!current) return res.status(404).json({ message: "Caja chica no encontrada" });
     const delta = money(newBalance - Number(current.currentBalance));
-    res.status(201).json(await createCashMovement({ id, type: "ADJUSTMENT", amount: Math.abs(delta), description: reason, reference: req.body.reference || null, transactionDate, nextBalanceOverride: newBalance }));
+    const result = await createCashMovement({ req, id, type: "ADJUSTMENT", amount: Math.abs(delta), description: reason, reference: req.body.reference || null, transactionDate, nextBalanceOverride: newBalance });
+    res.status(201).json(result);
+    await createAuditLog({ action: "CASH_TRANSACTION_CREATED", module: "CAJA_CHICA", entityType: "CashTransaction", entityId: result.transaction.id, description: `Ajuste de caja: ${reason}`, req });
   } catch (error) {
     next(error);
   }

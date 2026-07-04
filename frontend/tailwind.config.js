@@ -1,11 +1,12 @@
 export default {
+  darkMode: "class",
   content: ["./index.html", "./src/**/*.{js,jsx}"],
   theme: {
     extend: {
       colors: {
         ink: "#15202b",
         graphite: "#26313d",
-        accent: "#0f8b8d",
+        accent: "rgb(var(--color-accent) / <alpha-value>)",
         signal: "#df3f3f"
       },
       boxShadow: {

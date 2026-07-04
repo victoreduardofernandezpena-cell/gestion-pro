@@ -7,10 +7,9 @@ import FormField from "../components/FormField";
 import { getProducts } from "../services/productService";
 import { createPurchase } from "../services/purchaseService";
 import { getSuppliers } from "../services/supplierService";
+import { getDocumentSettings, getTaxes } from "../services/settingsService";
 import { getErrorMessage } from "../utils/errors";
 import { money } from "../utils/format";
-
-const TAX_RATE = 0.18;
 
 export default function CreatePurchase() {
   const navigate = useNavigate();
@@ -21,15 +20,19 @@ export default function CreatePurchase() {
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [notes, setNotes] = useState("");
+  const [taxRate, setTaxRate] = useState(0.18);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([getSuppliers(), getProducts()])
-      .then(([supplierData, productData]) => {
+    Promise.all([getSuppliers(), getProducts(), getTaxes(), getDocumentSettings()])
+      .then(([supplierData, productData, taxes, documentSettings]) => {
         setSuppliers(supplierData);
         setProducts(productData);
+        const defaultTax = taxes.find((tax) => tax.isDefault && tax.isActive);
+        if (defaultTax) setTaxRate(Number(defaultTax.rate) / 100);
+        if (documentSettings?.purchaseNotes) setNotes(documentSettings.purchaseNotes);
         if (supplierData[0]) setSupplierId(supplierData[0].id);
         if (productData[0]) setSelectedProductId(productData[0].id);
       })
@@ -39,10 +42,10 @@ export default function CreatePurchase() {
 
   const totals = useMemo(() => {
     const subtotal = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.cost), 0);
-    const tax = subtotal * TAX_RATE;
+    const tax = subtotal * taxRate;
     const total = subtotal + tax - Number(discount || 0);
     return { subtotal, tax, discount: Number(discount || 0), total };
-  }, [items, discount]);
+  }, [items, discount, taxRate]);
 
   const addProduct = () => {
     const product = products.find((item) => String(item.id) === String(selectedProductId));
@@ -177,7 +180,7 @@ export default function CreatePurchase() {
           <h2 className="mb-4 text-lg font-semibold">Resumen</h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><strong>{money.format(totals.subtotal)}</strong></div>
-            <div className="flex justify-between"><span className="text-slate-500">Impuesto 18%</span><strong>{money.format(totals.tax)}</strong></div>
+            <div className="flex justify-between"><span className="text-slate-500">Impuesto {Math.round(taxRate * 10000) / 100}%</span><strong>{money.format(totals.tax)}</strong></div>
             <label className="block">
               <span className="text-slate-500">Descuento</span>
               <input type="number" min={0} value={discount} onChange={(event) => setDiscount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />

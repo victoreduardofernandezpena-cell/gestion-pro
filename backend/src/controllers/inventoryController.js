@@ -1,8 +1,11 @@
 import prisma from "../prisma.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 export const listInventory = async (req, res, next) => {
   try {
     const products = await prisma.product.findMany({
+      where: { companyId: requireCompanyId(req) },
       select: {
         id: true,
         code: true,
@@ -29,6 +32,7 @@ export const listInventory = async (req, res, next) => {
 export const listInventoryMovements = async (req, res, next) => {
   try {
     const movements = await prisma.inventoryMovement.findMany({
+      where: { companyId: requireCompanyId(req) },
       include: {
         product: {
           select: { code: true, name: true }
@@ -64,7 +68,8 @@ export const createInventoryMovement = async (req, res, next) => {
     }
 
     const result = await prisma.$transaction(async (tx) => {
-      const product = await tx.product.findUnique({ where: { id: productId } });
+      const companyId = requireCompanyId(req);
+      const product = await tx.product.findFirst({ where: { id: productId, companyId } });
 
       if (!product) {
         const error = new Error("Producto no encontrado");
@@ -91,7 +96,7 @@ export const createInventoryMovement = async (req, res, next) => {
       });
 
       const movement = await tx.inventoryMovement.create({
-        data: { productId, type, quantity, reason },
+        data: { companyId, productId, type, quantity, reason },
         include: {
           product: {
             select: { code: true, name: true }
@@ -101,6 +106,7 @@ export const createInventoryMovement = async (req, res, next) => {
 
       return { product: updatedProduct, movement };
     }, { isolationLevel: "Serializable" });
+    await createAuditLog({ action: "INVENTORY_MOVEMENT_CREATED", module: "INVENTARIO", entityType: "InventoryMovement", entityId: result.movement.id, description: `${type} ${quantity} - ${result.movement.product?.name || ""}`, req });
 
     res.status(201).json(result);
   } catch (error) {

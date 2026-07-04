@@ -1,5 +1,7 @@
 import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const productSelect = {
   id: true,
@@ -36,15 +38,19 @@ const validateProduct = (data) => {
 export const listProducts = async (req, res, next) => {
   try {
     const search = req.query.search?.trim();
+    const companyId = requireCompanyId(req);
     const products = await prisma.product.findMany({
-      where: search
-        ? {
+      where: {
+        companyId,
+        ...(search
+          ? {
             OR: [
               { name: { contains: search, mode: "insensitive" } },
               { code: { contains: search, mode: "insensitive" } }
             ]
           }
-        : undefined,
+          : {})
+      },
       select: productSelect,
       orderBy: { createdAt: "desc" }
     });
@@ -60,8 +66,8 @@ export const getProduct = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de producto invalido" });
 
-    const product = await prisma.product.findUnique({
-      where: { id },
+    const product = await prisma.product.findFirst({
+      where: { id, companyId: requireCompanyId(req) },
       select: productSelect
     });
 
@@ -79,7 +85,8 @@ export const createProduct = async (req, res, next) => {
 
     if (validationError) return res.status(400).json({ message: validationError });
 
-    const product = await prisma.product.create({ data, select: productSelect });
+    const product = await prisma.product.create({ data: { ...data, companyId: requireCompanyId(req) }, select: productSelect });
+    await createAuditLog({ action: "PRODUCT_CREATED", module: "PRODUCTOS", entityType: "Product", entityId: product.id, description: `Producto creado: ${product.code}`, req });
     res.status(201).json(product);
   } catch (error) {
     if (error.code === "P2002") return res.status(409).json({ message: "Ya existe un producto con ese codigo" });
@@ -97,11 +104,15 @@ export const updateProduct = async (req, res, next) => {
 
     if (validationError) return res.status(400).json({ message: validationError });
 
+    const existing = await prisma.product.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Producto no encontrado" });
+
     const product = await prisma.product.update({
       where: { id },
       data,
       select: productSelect
     });
+    await createAuditLog({ action: "PRODUCT_UPDATED", module: "PRODUCTOS", entityType: "Product", entityId: product.id, description: `Producto actualizado: ${product.code}`, req });
 
     res.json(product);
   } catch (error) {
@@ -116,7 +127,11 @@ export const deleteProduct = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de producto invalido" });
 
+    const existing = await prisma.product.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Producto no encontrado" });
+
     await prisma.product.delete({ where: { id } });
+    await createAuditLog({ action: "PRODUCT_DELETED", module: "PRODUCTOS", entityType: "Product", entityId: id, description: "Producto eliminado", req });
     sendDeleted(res, "Producto");
   } catch (error) {
     if (error.code === "P2025") return res.status(404).json({ message: "Producto no encontrado" });

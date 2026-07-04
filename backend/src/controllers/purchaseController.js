@@ -1,6 +1,11 @@
 import prisma from "../prisma.js";
-import { PAYMENT_METHODS, TAX_RATE } from "../constants/billing.js";
+import { PAYMENT_METHODS } from "../constants/billing.js";
 import { parseIdParam } from "../utils/http.js";
+import { sendDocumentPdf } from "../utils/pdfGenerator.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { getDefaultTaxRate, getDocumentSetting } from "../utils/settings.js";
+import { getNextDocumentNumber } from "../utils/numbering.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const purchaseInclude = {
   supplier: { select: { id: true, name: true, rnc: true, phone: true, email: true } },
@@ -58,6 +63,7 @@ const validatePurchasePayload = (body) => {
 export const listPurchases = async (req, res, next) => {
   try {
     const purchases = await prisma.purchase.findMany({
+      where: { companyId: requireCompanyId(req) },
       include: { supplier: { select: { id: true, name: true, rnc: true } } },
       orderBy: { createdAt: "desc" }
     });
@@ -72,7 +78,7 @@ export const getPurchase = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de compra invalido" });
 
-    const purchase = await prisma.purchase.findUnique({ where: { id }, include: purchaseInclude });
+    const purchase = await prisma.purchase.findFirst({ where: { id, companyId: requireCompanyId(req) }, include: purchaseInclude });
     if (!purchase) return res.status(404).json({ message: "Compra no encontrada" });
 
     res.json(purchase);
@@ -87,7 +93,8 @@ export const createPurchase = async (req, res, next) => {
     if (payload.message) return res.status(400).json({ message: payload.message });
 
     const purchase = await prisma.$transaction(async (tx) => {
-      const supplier = await tx.supplier.findUnique({ where: { id: payload.supplierId } });
+      const companyId = requireCompanyId(req);
+      const supplier = await tx.supplier.findFirst({ where: { id: payload.supplierId, companyId } });
       if (!supplier) {
         const error = new Error("Proveedor no encontrado");
         error.status = 404;
@@ -95,7 +102,7 @@ export const createPurchase = async (req, res, next) => {
       }
 
       const productIds = [...new Set(payload.items.map((item) => item.productId))];
-      const products = await tx.product.findMany({ where: { id: { in: productIds } } });
+      const products = await tx.product.findMany({ where: { id: { in: productIds }, companyId } });
       const productMap = new Map(products.map((product) => [product.id, product]));
 
       for (const item of payload.items) {
@@ -107,7 +114,8 @@ export const createPurchase = async (req, res, next) => {
       }
 
       const subtotal = roundMoney(payload.items.reduce((sum, item) => sum + item.quantity * item.cost, 0));
-      const tax = roundMoney(subtotal * TAX_RATE);
+      const taxRate = await getDefaultTaxRate(tx, companyId);
+      const tax = roundMoney(subtotal * taxRate);
       const discount = roundMoney(payload.discount);
       const total = roundMoney(subtotal + tax - discount);
 
@@ -117,9 +125,11 @@ export const createPurchase = async (req, res, next) => {
         throw error;
       }
 
-      const purchaseNumber = await getNextPurchaseNumber(tx);
+      const documentSettings = await getDocumentSetting(tx, companyId);
+      const purchaseNumber = await getNextDocumentNumber(tx, "PURCHASE", companyId);
       const createdPurchase = await tx.purchase.create({
         data: {
+          companyId,
           purchaseNumber,
           supplierId: payload.supplierId,
           subtotal,
@@ -129,7 +139,7 @@ export const createPurchase = async (req, res, next) => {
           paidAmount: 0,
           balance: total,
           status: "PENDING",
-          notes: payload.notes
+          notes: payload.notes || documentSettings?.purchaseNotes || null
         }
       });
 
@@ -154,6 +164,7 @@ export const createPurchase = async (req, res, next) => {
 
         await tx.inventoryMovement.create({
           data: {
+            companyId,
             productId: item.productId,
             type: "ENTRADA",
             quantity: item.quantity,
@@ -162,10 +173,11 @@ export const createPurchase = async (req, res, next) => {
         });
       }
 
-      return tx.purchase.findUnique({ where: { id: createdPurchase.id }, include: purchaseInclude });
+      return tx.purchase.findFirst({ where: { id: createdPurchase.id, companyId }, include: purchaseInclude });
     }, { isolationLevel: "Serializable" });
 
     res.status(201).json(purchase);
+    await createAuditLog({ action: "PURCHASE_CREATED", module: "COMPRAS", entityType: "Purchase", entityId: purchase.id, description: `Compra creada: ${purchase.purchaseNumber}`, req });
   } catch (error) {
     next(error);
   }
@@ -177,8 +189,9 @@ export const cancelPurchase = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de compra invalido" });
 
     const purchase = await prisma.$transaction(async (tx) => {
-      const existing = await tx.purchase.findUnique({
-        where: { id },
+      const companyId = requireCompanyId(req);
+      const existing = await tx.purchase.findFirst({
+        where: { id, companyId },
         include: { items: true, payments: true }
       });
 
@@ -204,7 +217,7 @@ export const cancelPurchase = async (req, res, next) => {
       }
 
       for (const item of existing.items) {
-        const product = await tx.product.findUnique({ where: { id: item.productId } });
+        const product = await tx.product.findFirst({ where: { id: item.productId, companyId } });
         if (!product || product.stock < item.quantity) {
           const error = new Error(`No se puede cancelar. Stock insuficiente para revertir ${product?.name || "producto"}`);
           error.status = 400;
@@ -216,6 +229,7 @@ export const cancelPurchase = async (req, res, next) => {
         });
         await tx.inventoryMovement.create({
           data: {
+            companyId,
             productId: item.productId,
             type: "SALIDA",
             quantity: item.quantity,
@@ -232,6 +246,7 @@ export const cancelPurchase = async (req, res, next) => {
     }, { isolationLevel: "Serializable" });
 
     res.json(purchase);
+    await createAuditLog({ action: "PURCHASE_CANCELLED", module: "COMPRAS", entityType: "Purchase", entityId: purchase.id, description: `Compra cancelada: ${purchase.purchaseNumber}`, req });
   } catch (error) {
     next(error);
   }
@@ -243,7 +258,7 @@ export const listPurchasePayments = async (req, res, next) => {
     if (!purchaseId) return res.status(400).json({ message: "ID de compra invalido" });
 
     const payments = await prisma.purchasePayment.findMany({
-      where: { purchaseId },
+      where: { purchaseId, companyId: requireCompanyId(req) },
       include: {
         bankAccount: { select: { id: true, name: true, bankName: true, accountNumber: true, currentBalance: true } },
         bankTransaction: { select: { id: true, type: true, amount: true, description: true, reference: true } }
@@ -263,6 +278,7 @@ export const createPurchasePayment = async (req, res, next) => {
     const amount = Number(req.body.amount);
     const method = req.body.method;
     const bankAccountId = req.body.bankAccountId ? Number(req.body.bankAccountId) : null;
+    const cashBoxId = req.body.cashBoxId ? Number(req.body.cashBoxId) : null;
     const reference = req.body.reference?.trim() || null;
     const notes = req.body.notes?.trim() || null;
     const paymentDate = req.body.paymentDate ? new Date(req.body.paymentDate) : new Date();
@@ -273,10 +289,14 @@ export const createPurchasePayment = async (req, res, next) => {
     if (method === "BANK_TRANSFER" && (!Number.isInteger(bankAccountId) || bankAccountId <= 0)) {
       return res.status(400).json({ message: "Debe seleccionar la cuenta bancaria que realizara el pago" });
     }
+    if (method === "CASH" && (!Number.isInteger(cashBoxId) || cashBoxId <= 0)) {
+      return res.status(400).json({ message: "Debe seleccionar la caja que realizara el pago" });
+    }
     if (Number.isNaN(paymentDate.getTime())) return res.status(400).json({ message: "Fecha de pago invalida" });
 
     const result = await prisma.$transaction(async (tx) => {
-      const purchase = await tx.purchase.findUnique({ where: { id: purchaseId } });
+      const companyId = requireCompanyId(req);
+      const purchase = await tx.purchase.findFirst({ where: { id: purchaseId, companyId } });
 
       if (!purchase) {
         const error = new Error("Compra no encontrada");
@@ -301,7 +321,7 @@ export const createPurchasePayment = async (req, res, next) => {
 
       let bankTransaction = null;
       if (method === "BANK_TRANSFER") {
-        const bankAccount = await tx.bankAccount.findUnique({ where: { id: bankAccountId } });
+        const bankAccount = await tx.bankAccount.findFirst({ where: { id: bankAccountId, companyId } });
         if (!bankAccount || !bankAccount.isActive) {
           const error = new Error("Cuenta bancaria no encontrada o inactiva");
           error.status = 404;
@@ -320,8 +340,37 @@ export const createPurchasePayment = async (req, res, next) => {
 
         bankTransaction = await tx.bankTransaction.create({
           data: {
+            companyId,
             bankAccountId,
             type: "WITHDRAWAL",
+            amount,
+            description: `Pago compra #${purchase.purchaseNumber}`,
+            reference,
+            transactionDate: paymentDate
+          }
+        });
+      }
+      if (method === "CASH") {
+        const cashBox = await tx.cashBox.findFirst({ where: { id: cashBoxId, companyId } });
+        if (!cashBox || !cashBox.isActive) {
+          const error = new Error("Caja no encontrada o inactiva");
+          error.status = 404;
+          throw error;
+        }
+        if (Number(cashBox.currentBalance) < amount) {
+          const error = new Error("Balance insuficiente en la caja seleccionada");
+          error.status = 400;
+          throw error;
+        }
+        await tx.cashBox.update({
+          where: { id: cashBoxId },
+          data: { currentBalance: roundMoney(Number(cashBox.currentBalance) - amount) }
+        });
+        await tx.cashTransaction.create({
+          data: {
+            companyId,
+            cashBoxId,
+            type: "CASH_OUT",
             amount,
             description: `Pago compra #${purchase.purchaseNumber}`,
             reference,
@@ -336,6 +385,7 @@ export const createPurchasePayment = async (req, res, next) => {
 
       const payment = await tx.purchasePayment.create({
         data: {
+          companyId,
           purchaseId,
           bankAccountId: method === "BANK_TRANSFER" ? bankAccountId : null,
           bankTransactionId: bankTransaction?.id || null,
@@ -357,6 +407,53 @@ export const createPurchasePayment = async (req, res, next) => {
     }, { isolationLevel: "Serializable" });
 
     res.status(201).json(result);
+    await createAuditLog({ action: "PURCHASE_PAYMENT_CREATED", module: "COMPRAS", entityType: "PurchasePayment", entityId: result.payment.id, description: `Pago registrado a compra ${result.purchase.purchaseNumber}`, req });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const downloadPurchasePdf = async (req, res, next) => {
+  try {
+    const id = parseIdParam(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID de compra invalido" });
+
+    const companyId = requireCompanyId(req);
+    const purchase = await prisma.purchase.findFirst({ where: { id, companyId }, include: purchaseInclude });
+    if (!purchase) return res.status(404).json({ message: "Compra no encontrada" });
+
+    const [company, documentSettings] = await Promise.all([prisma.companySetting.findFirst({ where: { companyId } }), prisma.documentSetting.findFirst({ where: { companyId } })]);
+    sendDocumentPdf(res, {
+      filename: `${purchase.purchaseNumber}.pdf`,
+      title: `Compra ${purchase.purchaseNumber}`,
+      subtitle: "Documento generado desde Gestion Pro",
+      details: {
+        Fecha: purchase.createdAt,
+        Proveedor: purchase.supplier?.name,
+        RNC: purchase.supplier?.rnc,
+        Estado: purchase.status
+      },
+      company,
+      documentSettings,
+      columns: [
+        { header: "Codigo", value: (item) => item.product?.code },
+        { header: "Producto", value: (item) => item.product?.name },
+        { header: "Cantidad", value: (item) => item.quantity },
+        { header: "Costo", value: (item) => Number(item.cost) },
+        { header: "Total", value: (item) => Number(item.total) }
+      ],
+      rows: purchase.items,
+      totals: {
+        Subtotal: Number(purchase.subtotal),
+        Impuesto: Number(purchase.tax),
+        Descuento: Number(purchase.discount),
+        Total: Number(purchase.total),
+        Pagado: Number(purchase.paidAmount),
+        Balance: Number(purchase.balance)
+      },
+      notes: purchase.notes || documentSettings?.purchaseNotes,
+      terms: documentSettings?.purchaseTerms
+    });
   } catch (error) {
     next(error);
   }

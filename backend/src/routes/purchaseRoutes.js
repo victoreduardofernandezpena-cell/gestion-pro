@@ -3,6 +3,7 @@ import {
   cancelPurchase,
   createPurchase,
   createPurchasePayment,
+  downloadPurchasePdf,
   getPurchase,
   listPurchasePayments,
   listPurchases
@@ -14,6 +15,7 @@ const router = Router();
 
 router.use(authenticate);
 router.get("/", authorizeRoles("admin", "almacen", "contabilidad"), listPurchases);
+router.get("/:id/pdf", authorizeRoles("admin", "almacen", "contabilidad"), downloadPurchasePdf);
 router.get("/:id", authorizeRoles("admin", "almacen", "contabilidad"), getPurchase);
 router.post("/", authorizeRoles("admin", "almacen"), createPurchase);
 router.patch("/:id/cancel", authorizeRoles("admin", "almacen"), cancelPurchase);

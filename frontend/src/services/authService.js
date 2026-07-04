@@ -7,5 +7,10 @@ export const loginRequest = async (credentials) => {
 
 export const profileRequest = async () => {
   const { data } = await api.get("/auth/profile");
-  return data.user;
+  return data;
+};
+
+export const changeForcedPasswordRequest = async (newPassword) => {
+  const { data } = await api.patch("/auth/change-forced-password", { newPassword });
+  return data;
 };

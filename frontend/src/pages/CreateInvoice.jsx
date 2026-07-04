@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import AlertMessage from "../components/AlertMessage";
+import Button from "../components/Button";
 import DataTable from "../components/DataTable";
 import FormField from "../components/FormField";
 import { getClients } from "../services/clientService";
 import { createInvoice } from "../services/invoiceService";
 import { getProducts } from "../services/productService";
+import { getDocumentSettings, getTaxes } from "../services/settingsService";
+import { findLoyaltyCredential, getClientLoyaltyAccount, getLoyaltySettings } from "../services/loyaltyService";
 import { getErrorMessage } from "../utils/errors";
 import { money } from "../utils/format";
-
-const TAX_RATE = 0.18;
 
 export default function CreateInvoice() {
   const navigate = useNavigate();
@@ -20,16 +22,25 @@ export default function CreateInvoice() {
   const [selectedProductId, setSelectedProductId] = useState("");
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
+  const [loyaltyCode, setLoyaltyCode] = useState("");
+  const [loyaltyAccount, setLoyaltyAccount] = useState(null);
+  const [loyaltyRedeemAmount, setLoyaltyRedeemAmount] = useState(0);
+  const [loyaltySettings, setLoyaltySettings] = useState(null);
   const [notes, setNotes] = useState("");
+  const [taxRate, setTaxRate] = useState(0.18);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    Promise.all([getClients(), getProducts()])
-      .then(([clientData, productData]) => {
+    Promise.all([getClients(), getProducts(), getTaxes(), getDocumentSettings(), getLoyaltySettings()])
+      .then(([clientData, productData, taxes, documentSettings, loyaltyConfig]) => {
         setClients(clientData);
         setProducts(productData);
+        const defaultTax = taxes.find((tax) => tax.isDefault && tax.isActive);
+        if (defaultTax) setTaxRate(Number(defaultTax.rate) / 100);
+        if (documentSettings?.invoiceNotes) setNotes(documentSettings.invoiceNotes);
+        setLoyaltySettings(loyaltyConfig);
         if (clientData[0]) setClientId(clientData[0].id);
         if (productData[0]) setSelectedProductId(productData[0].id);
       })
@@ -39,10 +50,39 @@ export default function CreateInvoice() {
 
   const totals = useMemo(() => {
     const subtotal = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price), 0);
-    const tax = subtotal * TAX_RATE;
-    const total = subtotal + tax - Number(discount || 0);
-    return { subtotal, tax, discount: Number(discount || 0), total };
-  }, [items, discount]);
+    const tax = subtotal * taxRate;
+    const loyaltyDiscount = Number(loyaltyRedeemAmount || 0);
+    const total = subtotal + tax - Number(discount || 0) - loyaltyDiscount;
+    return { subtotal, tax, discount: Number(discount || 0), loyaltyDiscount, total };
+  }, [items, discount, loyaltyRedeemAmount, taxRate]);
+
+  const searchLoyaltyCredential = async () => {
+    if (!loyaltyCode.trim()) return setError("Escribe o escanea una credencial");
+    try {
+      const account = await findLoyaltyCredential(loyaltyCode.trim().toUpperCase());
+      setLoyaltyAccount(account);
+      setClientId(account.clientId);
+      setLoyaltyRedeemAmount(0);
+      setError("");
+    } catch (err) {
+      setLoyaltyAccount(null);
+      setError(getErrorMessage(err, "No se pudo buscar la credencial"));
+    }
+  };
+
+  const associateSelectedClient = async () => {
+    if (!clientId) return setError("Debe seleccionar un cliente");
+    try {
+      const account = await getClientLoyaltyAccount(clientId);
+      setLoyaltyAccount(account);
+      setLoyaltyCode(account.credentialCode);
+      setLoyaltyRedeemAmount(0);
+      setError("");
+    } catch (err) {
+      setLoyaltyAccount(null);
+      setError(getErrorMessage(err, "Este cliente no tiene cuenta de fidelizacion"));
+    }
+  };
 
   const addProduct = () => {
     const product = products.find((item) => String(item.id) === String(selectedProductId));
@@ -96,6 +136,9 @@ export default function CreateInvoice() {
     if (!clientId) return setError("Debe seleccionar un cliente");
     if (items.length === 0) return setError("Debe agregar al menos un producto");
     if (Number(discount || 0) < 0) return setError("El descuento no puede ser negativo");
+    if (Number(loyaltyRedeemAmount || 0) < 0) return setError("El credito de fidelizacion no puede ser negativo");
+    if (Number(loyaltyRedeemAmount || 0) > 0 && !loyaltyAccount) return setError("Debe buscar una credencial para usar credito");
+    if (Number(loyaltyRedeemAmount || 0) > Number(loyaltyAccount?.moneyBalance || 0)) return setError("No puedes usar mas credito del balance disponible");
     if (totals.total < 0) return setError("El descuento no puede ser mayor que subtotal e impuestos");
 
     for (const item of items) {
@@ -109,11 +152,15 @@ export default function CreateInvoice() {
       const invoice = await createInvoice({
         clientId,
         discount: totals.discount,
+        loyaltyAccountId: loyaltyAccount?.id || null,
+        loyaltyRedeemAmount: totals.loyaltyDiscount,
         notes,
         items: items.map((item) => ({ productId: item.productId, quantity: Number(item.quantity), price: Number(item.price) }))
       });
+      toast.success("Factura creada correctamente");
       navigate(`/invoices/${invoice.id}`);
     } catch (err) {
+      toast.error(getErrorMessage(err, "No fue posible crear la factura"));
       setError(getErrorMessage(err, "No fue posible crear la factura"));
     } finally {
       setSaving(false);
@@ -187,6 +234,21 @@ export default function CreateInvoice() {
           </div>
 
           <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
+            <h2 className="mb-4 text-lg font-semibold">Cliente Fiel</h2>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <input value={loyaltyCode} onChange={(event) => setLoyaltyCode(event.target.value)} placeholder="Escanear o escribir credencial LF-000001" className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
+              <button type="button" onClick={searchLoyaltyCredential} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Buscar credencial</button>
+              <button type="button" onClick={associateSelectedClient} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Usar cliente</button>
+            </div>
+            {loyaltyAccount && (
+              <div className="mt-4 rounded-lg bg-teal-50 p-4 text-sm text-teal-800">
+                <p className="font-semibold">{loyaltyAccount.client?.name} | {loyaltyAccount.credentialCode}</p>
+                <p>Balance disponible: {money.format(Number(loyaltyAccount.moneyBalance))}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
             <h2 className="mb-4 text-lg font-semibold">Productos</h2>
             <div className="mb-4 flex flex-col gap-3 sm:flex-row">
               <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent">
@@ -194,10 +256,7 @@ export default function CreateInvoice() {
                   <option key={product.id} value={product.id}>{product.code} - {product.name} | Stock: {product.stock}</option>
                 ))}
               </select>
-              <button type="button" onClick={addProduct} className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">
-                <Plus size={18} />
-                Agregar
-              </button>
+              <Button variant="secondary" icon={Plus} onClick={addProduct}>Agregar</Button>
             </div>
             <DataTable columns={columns} rows={items} minWidth="840px" getRowKey={(row) => row.productId} emptyTitle="Sin productos" emptyDescription="Agrega productos para crear la factura." />
           </div>
@@ -207,18 +266,23 @@ export default function CreateInvoice() {
           <h2 className="mb-4 text-lg font-semibold">Resumen</h2>
           <div className="space-y-3 text-sm">
             <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><strong>{money.format(totals.subtotal)}</strong></div>
-            <div className="flex justify-between"><span className="text-slate-500">Impuesto 18%</span><strong>{money.format(totals.tax)}</strong></div>
+            <div className="flex justify-between"><span className="text-slate-500">Impuesto {Math.round(taxRate * 10000) / 100}%</span><strong>{money.format(totals.tax)}</strong></div>
             <label className="block">
               <span className="text-slate-500">Descuento</span>
               <input type="number" min={0} value={discount} onChange={(event) => setDiscount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
             </label>
+            {loyaltySettings?.allowRedeem && (
+              <label className="block">
+                <span className="text-slate-500">Credito fidelidad</span>
+                <input type="number" min={0} max={Number(loyaltyAccount?.moneyBalance || 0)} value={loyaltyRedeemAmount} onChange={(event) => setLoyaltyRedeemAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
+              </label>
+            )}
+            {totals.loyaltyDiscount > 0 && <div className="flex justify-between"><span className="text-slate-500">Fidelidad aplicada</span><strong>{money.format(totals.loyaltyDiscount)}</strong></div>}
             <div className="border-t border-slate-200 pt-3">
               <div className="flex justify-between text-base"><span>Total</span><strong>{money.format(totals.total)}</strong></div>
             </div>
           </div>
-          <button disabled={saving} className="mt-6 w-full rounded-lg bg-accent px-4 py-3 font-semibold text-white disabled:opacity-60">
-            {saving ? "Creando..." : "Crear factura"}
-          </button>
+          <Button type="submit" loading={saving} className="mt-6 w-full" size="lg">Crear factura</Button>
         </aside>
       </section>
     </form>

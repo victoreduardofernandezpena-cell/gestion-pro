@@ -1,23 +1,54 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
+import Button from "../components/Button";
+import Card from "../components/Card";
 import DataTable from "../components/DataTable";
 import FormField from "../components/FormField";
+import PageHeader from "../components/PageHeader";
+import StatusBadge from "../components/StatusBadge";
+import { getBankAccounts } from "../services/bankService";
+import { getCashBoxes } from "../services/cashBoxService";
 import { cancelPurchase, createPurchasePayment, getPurchase } from "../services/purchaseService";
+import { downloadPurchasePdf } from "../services/reportService";
 import { getErrorMessage } from "../utils/errors";
-import { formatDate, money, paymentMethodLabels, statusClass, statusLabels } from "../utils/format";
+import { formatDate, money, paymentMethodLabels } from "../utils/format";
 
 const emptyPayment = {
   amount: "",
-  method: "CASH",
+  method: "BANK_TRANSFER",
+  bankAccountId: "",
+  cashBoxId: "",
   reference: "",
   notes: "",
   paymentDate: new Date().toISOString().slice(0, 10)
 };
 
+function DetailMetric({ label, value, children, tone = "slate" }) {
+  const toneClass = {
+    slate: "from-slate-500/10",
+    green: "from-emerald-500/10",
+    amber: "from-amber-500/10",
+    red: "from-rose-500/10",
+    blue: "from-sky-500/10"
+  }[tone];
+
+  return (
+    <Card className="relative overflow-hidden">
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${toneClass} to-transparent`} />
+      <div className="relative">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500 dark:text-slate-400">{label}</p>
+        {children || <p className="mt-3 text-2xl font-semibold tracking-tight text-slate-950 dark:text-slate-100">{value}</p>}
+      </div>
+    </Card>
+  );
+}
+
 export default function PurchaseDetail() {
   const { id } = useParams();
   const [purchase, setPurchase] = useState(null);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [cashBoxes, setCashBoxes] = useState([]);
   const [payment, setPayment] = useState(emptyPayment);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,7 +57,10 @@ export default function PurchaseDetail() {
   const loadPurchase = async () => {
     setLoading(true);
     try {
-      setPurchase(await getPurchase(id));
+      const [purchaseData, accountsData, cashBoxesData] = await Promise.all([getPurchase(id), getBankAccounts(), getCashBoxes()]);
+      setPurchase(purchaseData);
+      setBankAccounts(accountsData.filter((account) => account.isActive));
+      setCashBoxes(cashBoxesData.filter((box) => box.isActive));
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar la compra"));
@@ -46,10 +80,26 @@ export default function PurchaseDetail() {
     if (Number.isNaN(amount) || amount <= 0) return setError("El monto debe ser mayor que cero");
     if (amount > Number(purchase.balance)) return setError("El monto no puede ser mayor al balance pendiente");
     if (!payment.method) return setError("El metodo de pago es obligatorio");
+    if (payment.method === "BANK_TRANSFER" && !payment.bankAccountId) return setError("Selecciona la cuenta bancaria que realizara el pago");
+    if (payment.method === "CASH" && !payment.cashBoxId) return setError("Selecciona la caja que realizara el pago");
+
+    const selectedBankAccount = bankAccounts.find((account) => String(account.id) === String(payment.bankAccountId));
+    if (payment.method === "BANK_TRANSFER" && selectedBankAccount && amount > Number(selectedBankAccount.currentBalance)) {
+      return setError("La cuenta bancaria seleccionada no tiene balance suficiente");
+    }
+    const selectedCashBox = cashBoxes.find((box) => String(box.id) === String(payment.cashBoxId));
+    if (payment.method === "CASH" && selectedCashBox && amount > Number(selectedCashBox.currentBalance)) {
+      return setError("La caja seleccionada no tiene balance suficiente");
+    }
 
     setSaving(true);
     try {
-      const result = await createPurchasePayment(purchase.id, { ...payment, amount });
+      const result = await createPurchasePayment(purchase.id, {
+        ...payment,
+        amount,
+        bankAccountId: payment.method === "BANK_TRANSFER" ? Number(payment.bankAccountId) : null,
+        cashBoxId: payment.method === "CASH" ? Number(payment.cashBoxId) : null
+      });
       setPurchase(result.purchase);
       setPayment(emptyPayment);
     } catch (err) {
@@ -72,7 +122,15 @@ export default function PurchaseDetail() {
     }
   };
 
-  if (loading) return <div className="rounded-lg bg-white p-6 shadow-soft">Cargando compra...</div>;
+  const downloadPdf = async () => {
+    try {
+      await downloadPurchasePdf(purchase.id, purchase.purchaseNumber);
+    } catch (err) {
+      setError(getErrorMessage(err, "No fue posible descargar el PDF"));
+    }
+  };
+
+  if (loading) return <Card>Cargando compra...</Card>;
   if (!purchase) return <AlertMessage>{error || "Compra no encontrada"}</AlertMessage>;
 
   const canPay = Number(purchase.balance) > 0 && !["CANCELLED", "PAID"].includes(purchase.status);
@@ -90,77 +148,102 @@ export default function PurchaseDetail() {
     { key: "paymentDate", header: "Fecha", render: (row) => formatDate(row.paymentDate) },
     { key: "amount", header: "Monto", render: (row) => money.format(Number(row.amount)) },
     { key: "method", header: "Metodo", render: (row) => paymentMethodLabels[row.method] },
+    { key: "bankAccount", header: "Cuenta", render: (row) => row.bankAccount ? `${row.bankAccount.bankName} - ${row.bankAccount.name}` : "-" },
     { key: "reference", header: "Referencia" },
     { key: "notes", header: "Notas" }
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">Compra</p>
-          <h1 className="text-3xl font-semibold text-slate-950">{purchase.purchaseNumber}</h1>
-          <p className="mt-1 text-slate-500">{purchase.supplier?.name} | {formatDate(purchase.createdAt)}</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Link to="/purchases" className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Volver</Link>
+      <PageHeader
+        eyebrow="Compra"
+        title={purchase.purchaseNumber}
+        description={`${purchase.supplier?.name || "Proveedor"} | ${formatDate(purchase.createdAt)}`}
+      >
+          <Link to="/purchases" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Volver</Link>
+          <Button variant="outline" onClick={downloadPdf}>Descargar PDF</Button>
+          <Button variant="outline" onClick={() => window.print()}>Imprimir</Button>
           {canCancel && (
-            <button type="button" onClick={cancel} disabled={saving} className="rounded-lg border border-rose-200 bg-white px-4 py-2 font-semibold text-rose-700 disabled:opacity-60">
-              Cancelar compra
-            </button>
+            <Button variant="danger" onClick={cancel} loading={saving}>Cancelar compra</Button>
           )}
-        </div>
-      </div>
+      </PageHeader>
 
       <AlertMessage>{error}</AlertMessage>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-          <p className="text-sm text-slate-500">Estado</p>
-          <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-xs font-semibold ${statusClass[purchase.status]}`}>{statusLabels[purchase.status]}</span>
-        </div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><p className="text-sm text-slate-500">Total</p><p className="mt-2 text-2xl font-semibold">{money.format(Number(purchase.total))}</p></div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><p className="text-sm text-slate-500">Pagado</p><p className="mt-2 text-2xl font-semibold">{money.format(Number(purchase.paidAmount))}</p></div>
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><p className="text-sm text-slate-500">Balance</p><p className="mt-2 text-2xl font-semibold">{money.format(Number(purchase.balance))}</p></div>
+        <DetailMetric label="Estado" tone="blue"><div className="mt-3"><StatusBadge status={purchase.status} /></div></DetailMetric>
+        <DetailMetric label="Total" value={money.format(Number(purchase.total))} tone="slate" />
+        <DetailMetric label="Pagado" value={money.format(Number(purchase.paidAmount))} tone="green" />
+        <DetailMetric label="Balance" value={money.format(Number(purchase.balance))} tone={Number(purchase.balance) > 0 ? "amber" : "green"} />
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-        <h2 className="mb-4 text-lg font-semibold">Productos comprados</h2>
+      <Card>
+        <h2 className="mb-4 text-lg font-semibold text-slate-950 dark:text-slate-100">Productos comprados</h2>
         <DataTable columns={itemColumns} rows={purchase.items} minWidth="760px" emptyTitle="Sin productos" />
-      </section>
+      </Card>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_360px]">
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-          <h2 className="mb-4 text-lg font-semibold">Historial de pagos</h2>
+        <Card>
+          <h2 className="mb-4 text-lg font-semibold text-slate-950 dark:text-slate-100">Historial de pagos</h2>
           <DataTable columns={paymentColumns} rows={purchase.payments} minWidth="760px" emptyTitle="Sin pagos" emptyDescription="Los pagos registrados apareceran aqui." />
-        </div>
+        </Card>
 
-        <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-          <h2 className="mb-4 text-lg font-semibold">Totales</h2>
-          <div className="mb-6 space-y-2 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><strong>{money.format(Number(purchase.subtotal))}</strong></div>
-            <div className="flex justify-between"><span className="text-slate-500">Impuesto</span><strong>{money.format(Number(purchase.tax))}</strong></div>
-            <div className="flex justify-between"><span className="text-slate-500">Descuento</span><strong>{money.format(Number(purchase.discount))}</strong></div>
+        <Card className="xl:sticky xl:top-24 xl:self-start">
+          <h2 className="mb-4 text-lg font-semibold text-slate-950 dark:text-slate-100">Totales</h2>
+          <div className="mb-6 space-y-3 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-950/45">
+            <div className="flex justify-between gap-4"><span className="text-slate-500 dark:text-slate-400">Subtotal</span><strong className="text-slate-900 dark:text-slate-100">{money.format(Number(purchase.subtotal))}</strong></div>
+            <div className="flex justify-between gap-4"><span className="text-slate-500 dark:text-slate-400">Impuesto</span><strong className="text-slate-900 dark:text-slate-100">{money.format(Number(purchase.tax))}</strong></div>
+            <div className="flex justify-between gap-4"><span className="text-slate-500 dark:text-slate-400">Descuento</span><strong className="text-slate-900 dark:text-slate-100">{money.format(Number(purchase.discount))}</strong></div>
           </div>
 
           {canPay ? (
             <form onSubmit={submitPayment}>
-              <h3 className="mb-3 font-semibold">Registrar pago</h3>
+              <h3 className="mb-3 font-semibold text-slate-950 dark:text-slate-100">Registrar pago</h3>
               <FormField label="Monto" type="number" min={0} value={payment.amount} onChange={(value) => setPayment({ ...payment, amount: value })} required />
-              <FormField label="Metodo" as="select" value={payment.method} onChange={(value) => setPayment({ ...payment, method: value })} required>
+              <FormField label="Metodo" as="select" value={payment.method} onChange={(value) => setPayment({ ...payment, method: value, bankAccountId: "", cashBoxId: "" })} required>
                 {Object.entries(paymentMethodLabels).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
               </FormField>
+              {payment.method === "BANK_TRANSFER" && (
+                <>
+                  <FormField label="Cuenta bancaria" as="select" value={payment.bankAccountId} onChange={(value) => setPayment({ ...payment, bankAccountId: value })} required>
+                    <option value="">Selecciona una cuenta</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bankName} - {account.name} ({money.format(Number(account.currentBalance || 0))})
+                      </option>
+                    ))}
+                  </FormField>
+                  {bankAccounts.length === 0 && (
+                    <AlertMessage type="info">No hay cuentas bancarias activas. Crea una cuenta en Banco para pagar por transferencia.</AlertMessage>
+                  )}
+                </>
+              )}
+              {payment.method === "CASH" && (
+                <>
+                  <FormField label="Caja" as="select" value={payment.cashBoxId} onChange={(value) => setPayment({ ...payment, cashBoxId: value })} required>
+                    <option value="">Selecciona una caja</option>
+                    {cashBoxes.map((box) => (
+                      <option key={box.id} value={box.id}>
+                        {box.name} ({money.format(Number(box.currentBalance || 0))})
+                      </option>
+                    ))}
+                  </FormField>
+                  {cashBoxes.length === 0 && (
+                    <AlertMessage type="info">No hay cajas activas. Crea una caja en Caja Chica para pagar en efectivo.</AlertMessage>
+                  )}
+                </>
+              )}
               <FormField label="Referencia" value={payment.reference} onChange={(value) => setPayment({ ...payment, reference: value })} />
               <FormField label="Fecha" type="date" value={payment.paymentDate} onChange={(value) => setPayment({ ...payment, paymentDate: value })} required />
               <FormField label="Notas" as="textarea" value={payment.notes} onChange={(value) => setPayment({ ...payment, notes: value })} />
-              <button disabled={saving} className="w-full rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? "Registrando..." : "Registrar pago"}</button>
+              <Button type="submit" loading={saving} className="w-full">Registrar pago</Button>
             </form>
           ) : (
             <AlertMessage type="info">Esta compra no tiene balance pendiente para pago.</AlertMessage>
           )}
-        </div>
+        </Card>
       </section>
     </div>
   );

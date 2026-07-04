@@ -1,0 +1,3 @@
+ALTER TABLE "User" ADD COLUMN "mustChangePassword" BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE "User" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
+ALTER TABLE "User" ADD COLUMN "lastPasswordResetAt" TIMESTAMP(3);

@@ -1,6 +1,8 @@
 import prisma from "../prisma.js";
 import { EXPENSE_CATEGORIES, EXPENSE_PAYMENT_SOURCES } from "../constants/finance.js";
 import { parseIdParam } from "../utils/http.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const dateValue = (value) => {
   const date = value ? new Date(value) : null;
@@ -16,7 +18,7 @@ const includeExpense = {
 export const listExpenses = async (req, res, next) => {
   try {
     const { category, paymentSource, date } = req.query;
-    const where = {};
+    const where = { companyId: requireCompanyId(req) };
     if (category && EXPENSE_CATEGORIES.includes(category)) where.category = category;
     if (paymentSource && EXPENSE_PAYMENT_SOURCES.includes(paymentSource)) where.paymentSource = paymentSource;
     if (date) {
@@ -37,7 +39,7 @@ export const getExpense = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de gasto invalido" });
-    const expense = await prisma.expense.findUnique({ where: { id }, include: includeExpense });
+    const expense = await prisma.expense.findFirst({ where: { id, companyId: requireCompanyId(req) }, include: includeExpense });
     if (!expense) return res.status(404).json({ message: "Gasto no encontrado" });
     res.json(expense);
   } catch (error) {
@@ -61,13 +63,14 @@ export const createExpense = async (req, res, next) => {
     if (!expenseDate) return res.status(400).json({ message: "Fecha de gasto invalida" });
 
     const expense = await prisma.$transaction(async (tx) => {
+      const companyId = requireCompanyId(req);
       if (paymentSource === "BANK") {
         if (!bankAccountId) {
           const error = new Error("Debe seleccionar una cuenta bancaria");
           error.status = 400;
           throw error;
         }
-        const account = await tx.bankAccount.findUnique({ where: { id: bankAccountId } });
+        const account = await tx.bankAccount.findFirst({ where: { id: bankAccountId, companyId } });
         if (!account || !account.isActive) {
           const error = new Error("Cuenta bancaria no encontrada o inactiva");
           error.status = 404;
@@ -79,7 +82,7 @@ export const createExpense = async (req, res, next) => {
           throw error;
         }
         await tx.bankAccount.update({ where: { id: bankAccountId }, data: { currentBalance: money(Number(account.currentBalance) - amount) } });
-        await tx.bankTransaction.create({ data: { bankAccountId, type: "WITHDRAWAL", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, transactionDate: expenseDate } });
+        await tx.bankTransaction.create({ data: { companyId, bankAccountId, type: "WITHDRAWAL", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, transactionDate: expenseDate } });
       }
       if (paymentSource === "CASH_BOX") {
         if (!cashBoxId) {
@@ -87,7 +90,7 @@ export const createExpense = async (req, res, next) => {
           error.status = 400;
           throw error;
         }
-        const cashBox = await tx.cashBox.findUnique({ where: { id: cashBoxId } });
+        const cashBox = await tx.cashBox.findFirst({ where: { id: cashBoxId, companyId } });
         if (!cashBox || !cashBox.isActive) {
           const error = new Error("Caja chica no encontrada o inactiva");
           error.status = 404;
@@ -99,14 +102,15 @@ export const createExpense = async (req, res, next) => {
           throw error;
         }
         await tx.cashBox.update({ where: { id: cashBoxId }, data: { currentBalance: money(Number(cashBox.currentBalance) - amount) } });
-        await tx.cashTransaction.create({ data: { cashBoxId, type: "CASH_OUT", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, transactionDate: expenseDate } });
+        await tx.cashTransaction.create({ data: { companyId, cashBoxId, type: "CASH_OUT", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, transactionDate: expenseDate } });
       }
       return tx.expense.create({
-        data: { category, description, amount, paymentSource, bankAccountId: paymentSource === "BANK" ? bankAccountId : null, cashBoxId: paymentSource === "CASH_BOX" ? cashBoxId : null, reference: req.body.reference || null, expenseDate },
+        data: { companyId, category, description, amount, paymentSource, bankAccountId: paymentSource === "BANK" ? bankAccountId : null, cashBoxId: paymentSource === "CASH_BOX" ? cashBoxId : null, reference: req.body.reference || null, expenseDate },
         include: includeExpense
       });
     }, { isolationLevel: "Serializable" });
     res.status(201).json(expense);
+    await createAuditLog({ action: "EXPENSE_CREATED", module: "GASTOS", entityType: "Expense", entityId: expense.id, description: `Gasto creado: ${description}`, req });
   } catch (error) {
     next(error);
   }
@@ -119,6 +123,8 @@ export const updateExpense = async (req, res, next) => {
     const { category, description, reference } = req.body;
     if (!EXPENSE_CATEGORIES.includes(category)) return res.status(400).json({ message: "Categoria invalida" });
     if (!description?.trim()) return res.status(400).json({ message: "La descripcion es obligatoria" });
+    const existing = await prisma.expense.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Gasto no encontrado" });
     const expense = await prisma.expense.update({ where: { id }, data: { category, description: description.trim(), reference: reference || null }, include: includeExpense });
     res.json(expense);
   } catch (error) {
@@ -137,7 +143,7 @@ export const deleteExpense = async (req, res, next) => {
 
 export const getExpenseSummary = async (req, res, next) => {
   try {
-    const expenses = await prisma.expense.findMany({ select: { amount: true, category: true, expenseDate: true } });
+    const expenses = await prisma.expense.findMany({ where: { companyId: requireCompanyId(req) }, select: { amount: true, category: true, expenseDate: true } });
     const summary = expenses.reduce(
       (acc, expense) => {
         const amount = Number(expense.amount);

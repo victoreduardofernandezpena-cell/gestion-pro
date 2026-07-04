@@ -3,6 +3,7 @@ import {
   cancelInvoice,
   createInvoice,
   deleteInvoice,
+  downloadInvoicePdf,
   getInvoice,
   listInvoices,
   updateInvoice
@@ -16,6 +17,7 @@ const router = Router();
 router.use(authenticate);
 
 router.get("/", authorizeRoles("admin", "ventas", "contabilidad"), listInvoices);
+router.get("/:id/pdf", authorizeRoles("admin", "ventas", "contabilidad"), downloadInvoicePdf);
 router.get("/:id", authorizeRoles("admin", "ventas", "contabilidad"), getInvoice);
 router.post("/", authorizeRoles("admin", "ventas"), createInvoice);
 router.put("/:id", authorizeRoles("admin", "ventas"), updateInvoice);

@@ -1,9 +1,10 @@
 import prisma from "../prisma.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 export const listAccountsReceivable = async (req, res, next) => {
   try {
     const invoices = await prisma.invoice.findMany({
-      where: { status: { in: ["PENDING", "PARTIAL"] } },
+      where: { companyId: requireCompanyId(req), status: { in: ["PENDING", "PARTIAL"] } },
       include: {
         client: { select: { id: true, name: true, rnc: true, phone: true, email: true } }
       },
@@ -19,7 +20,7 @@ export const listAccountsReceivable = async (req, res, next) => {
 export const getAccountsReceivableSummary = async (req, res, next) => {
   try {
     const invoices = await prisma.invoice.findMany({
-      where: { status: { in: ["PENDING", "PARTIAL"] } },
+      where: { companyId: requireCompanyId(req), status: { in: ["PENDING", "PARTIAL"] } },
       select: { status: true, balance: true }
     });
 

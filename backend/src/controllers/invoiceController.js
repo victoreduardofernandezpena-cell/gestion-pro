@@ -1,6 +1,12 @@
 import prisma from "../prisma.js";
 import { parseIdParam } from "../utils/http.js";
-import { INVOICE_STATUSES, TAX_RATE } from "../constants/billing.js";
+import { INVOICE_STATUSES } from "../constants/billing.js";
+import { sendDocumentPdf } from "../utils/pdfGenerator.js";
+import { createAuditLog } from "../utils/auditLogger.js";
+import { getDefaultTaxRate, getDocumentSetting } from "../utils/settings.js";
+import { getNextDocumentNumber } from "../utils/numbering.js";
+import { getActiveLoyaltySetting, roundMoney } from "../utils/loyaltyCalculator.js";
+import { requireCompanyId } from "../utils/companyScope.js";
 
 const invoiceInclude = {
   client: { select: { id: true, name: true, rnc: true, phone: true, email: true } },
@@ -10,10 +16,12 @@ const invoiceInclude = {
     },
     orderBy: { id: "asc" }
   },
-  payments: { orderBy: { paymentDate: "desc" } }
+  payments: { orderBy: { paymentDate: "desc" } },
+  loyaltyTransactions: {
+    include: { loyaltyAccount: { select: { id: true, credentialCode: true } } },
+    orderBy: { createdAt: "desc" }
+  }
 };
-
-const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 const getNextInvoiceNumber = async (tx) => {
   const lastInvoice = await tx.invoice.findFirst({
@@ -30,10 +38,13 @@ const validateInvoicePayload = (body) => {
   const clientId = Number(body.clientId);
   const items = Array.isArray(body.items) ? body.items : [];
   const discount = Number(body.discount || 0);
+  const loyaltyAccountId = body.loyaltyAccountId ? Number(body.loyaltyAccountId) : null;
+  const loyaltyRedeemAmount = Number(body.loyaltyRedeemAmount || 0);
 
   if (!Number.isInteger(clientId) || clientId <= 0) return { message: "Debe seleccionar un cliente valido" };
   if (items.length === 0) return { message: "Debe agregar al menos un producto" };
   if (Number.isNaN(discount) || discount < 0) return { message: "El descuento no puede ser negativo" };
+  if (Number.isNaN(loyaltyRedeemAmount) || loyaltyRedeemAmount < 0) return { message: "El credito de fidelizacion no puede ser negativo" };
 
   const normalizedItems = [];
 
@@ -49,7 +60,7 @@ const validateInvoicePayload = (body) => {
     normalizedItems.push({ productId, quantity, price });
   }
 
-  return { clientId, items: normalizedItems, discount, notes: body.notes?.trim() || null };
+  return { clientId, items: normalizedItems, discount, loyaltyAccountId, loyaltyRedeemAmount, notes: body.notes?.trim() || null };
 };
 
 export const listInvoices = async (req, res, next) => {
@@ -60,7 +71,7 @@ export const listInvoices = async (req, res, next) => {
     }
 
     const invoices = await prisma.invoice.findMany({
-      where: status ? { status } : undefined,
+      where: { companyId: requireCompanyId(req), ...(status ? { status } : {}) },
       include: {
         client: { select: { id: true, name: true, rnc: true } }
       },
@@ -78,8 +89,8 @@ export const getInvoice = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de factura invalido" });
 
-    const invoice = await prisma.invoice.findUnique({
-      where: { id },
+    const invoice = await prisma.invoice.findFirst({
+      where: { id, companyId: requireCompanyId(req) },
       include: invoiceInclude
     });
 
@@ -96,7 +107,8 @@ export const createInvoice = async (req, res, next) => {
     if (payload.message) return res.status(400).json({ message: payload.message });
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const client = await tx.client.findUnique({ where: { id: payload.clientId } });
+      const companyId = requireCompanyId(req);
+      const client = await tx.client.findFirst({ where: { id: payload.clientId, companyId } });
       if (!client) {
         const error = new Error("Cliente no encontrado");
         error.status = 404;
@@ -104,7 +116,7 @@ export const createInvoice = async (req, res, next) => {
       }
 
       const productIds = [...new Set(payload.items.map((item) => item.productId))];
-      const products = await tx.product.findMany({ where: { id: { in: productIds } } });
+      const products = await tx.product.findMany({ where: { id: { in: productIds }, companyId } });
       const productMap = new Map(products.map((product) => [product.id, product]));
       const requestedByProduct = payload.items.reduce((acc, item) => {
         acc.set(item.productId, (acc.get(item.productId) || 0) + item.quantity);
@@ -126,9 +138,42 @@ export const createInvoice = async (req, res, next) => {
       }
 
       const subtotal = roundMoney(payload.items.reduce((sum, item) => sum + item.quantity * item.price, 0));
-      const tax = roundMoney(subtotal * TAX_RATE);
+      const taxRate = await getDefaultTaxRate(tx, companyId);
+      const tax = roundMoney(subtotal * taxRate);
       const discount = roundMoney(payload.discount);
-      const total = roundMoney(subtotal + tax - discount);
+      const loyaltyDiscount = roundMoney(payload.loyaltyRedeemAmount);
+
+      if (loyaltyDiscount > 0) {
+        if (!payload.loyaltyAccountId) {
+          const error = new Error("Debe seleccionar una cuenta de fidelizacion para usar credito");
+          error.status = 400;
+          throw error;
+        }
+        const setting = await getActiveLoyaltySetting(tx, companyId);
+        if (!setting.allowRedeem) {
+          const error = new Error("El canje de fidelizacion esta deshabilitado");
+          error.status = 400;
+          throw error;
+        }
+        if (loyaltyDiscount < Number(setting.minimumRedeemAmount)) {
+          const error = new Error(`El minimo de canje es ${Number(setting.minimumRedeemAmount)}`);
+          error.status = 400;
+          throw error;
+        }
+        const loyaltyAccount = await tx.loyaltyAccount.findFirst({ where: { id: payload.loyaltyAccountId, companyId } });
+        if (!loyaltyAccount || !loyaltyAccount.isActive || loyaltyAccount.clientId !== payload.clientId) {
+          const error = new Error("Cuenta de fidelizacion invalida para este cliente");
+          error.status = 400;
+          throw error;
+        }
+        if (loyaltyDiscount > Number(loyaltyAccount.moneyBalance)) {
+          const error = new Error("No se puede usar mas credito de fidelizacion que el balance disponible");
+          error.status = 400;
+          throw error;
+        }
+      }
+
+      const total = roundMoney(subtotal + tax - discount - loyaltyDiscount);
 
       if (total < 0) {
         const error = new Error("El descuento no puede ser mayor que subtotal e impuestos");
@@ -136,19 +181,22 @@ export const createInvoice = async (req, res, next) => {
         throw error;
       }
 
-      const invoiceNumber = await getNextInvoiceNumber(tx);
+      const documentSettings = await getDocumentSetting(tx, companyId);
+      const invoiceNumber = await getNextDocumentNumber(tx, "INVOICE", companyId);
       const createdInvoice = await tx.invoice.create({
         data: {
+          companyId,
           invoiceNumber,
           clientId: payload.clientId,
           subtotal,
           tax,
           discount,
+          loyaltyDiscount,
           total,
           paidAmount: 0,
           balance: total,
           status: "PENDING",
-          notes: payload.notes
+          notes: payload.notes || documentSettings?.invoiceNotes || null
         }
       });
 
@@ -172,6 +220,7 @@ export const createInvoice = async (req, res, next) => {
 
         await tx.inventoryMovement.create({
           data: {
+            companyId,
             productId: item.productId,
             type: "SALIDA",
             quantity: item.quantity,
@@ -180,10 +229,37 @@ export const createInvoice = async (req, res, next) => {
         });
       }
 
-      return tx.invoice.findUnique({ where: { id: createdInvoice.id }, include: invoiceInclude });
+      if (loyaltyDiscount > 0) {
+        await tx.loyaltyTransaction.create({
+          data: {
+            companyId,
+            loyaltyAccountId: payload.loyaltyAccountId,
+            clientId: payload.clientId,
+            invoiceId: createdInvoice.id,
+            type: "REDEEMED",
+            amount: loyaltyDiscount,
+            points: loyaltyDiscount,
+            description: `Credito usado en factura ${invoiceNumber}`
+          }
+        });
+        await tx.loyaltyAccount.update({
+          where: { id: payload.loyaltyAccountId },
+          data: {
+            moneyBalance: { decrement: loyaltyDiscount },
+            pointsBalance: { decrement: loyaltyDiscount },
+            totalRedeemed: { increment: loyaltyDiscount }
+          }
+        });
+      }
+
+      return tx.invoice.findFirst({ where: { id: createdInvoice.id, companyId }, include: invoiceInclude });
     }, { isolationLevel: "Serializable" });
 
     res.status(201).json(invoice);
+    await createAuditLog({ action: "INVOICE_CREATED", module: "FACTURACION", entityType: "Invoice", entityId: invoice.id, description: `Factura creada: ${invoice.invoiceNumber}`, req });
+    if (Number(invoice.loyaltyDiscount || 0) > 0) {
+      await createAuditLog({ action: "LOYALTY_REWARD_REDEEMED", module: "FIDELIZACION", entityType: "Invoice", entityId: invoice.id, description: `Credito de fidelizacion usado en ${invoice.invoiceNumber}`, req });
+    }
   } catch (error) {
     next(error);
   }
@@ -194,6 +270,8 @@ export const updateInvoice = async (req, res, next) => {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de factura invalido" });
 
+    const existing = await prisma.invoice.findFirst({ where: { id, companyId: requireCompanyId(req) } });
+    if (!existing) return res.status(404).json({ message: "Factura no encontrada" });
     const invoice = await prisma.invoice.update({
       where: { id },
       data: { notes: req.body.notes?.trim() || null },
@@ -201,6 +279,7 @@ export const updateInvoice = async (req, res, next) => {
     });
 
     res.json(invoice);
+    await createAuditLog({ action: "INVOICE_UPDATED", module: "FACTURACION", entityType: "Invoice", entityId: invoice.id, description: `Factura actualizada: ${invoice.invoiceNumber}`, req });
   } catch (error) {
     if (error.code === "P2025") return res.status(404).json({ message: "Factura no encontrada" });
     next(error);
@@ -213,9 +292,10 @@ export const cancelInvoice = async (req, res, next) => {
     if (!id) return res.status(400).json({ message: "ID de factura invalido" });
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const existing = await tx.invoice.findUnique({
-        where: { id },
-        include: { items: true, payments: true }
+      const companyId = requireCompanyId(req);
+      const existing = await tx.invoice.findFirst({
+        where: { id, companyId },
+        include: { items: true, payments: true, loyaltyTransactions: true }
       });
 
       if (!existing) {
@@ -246,10 +326,38 @@ export const cancelInvoice = async (req, res, next) => {
         });
         await tx.inventoryMovement.create({
           data: {
+            companyId,
             productId: item.productId,
             type: "ENTRADA",
             quantity: item.quantity,
             reason: `Cancelacion Factura #${existing.invoiceNumber}`
+          }
+        });
+      }
+
+      const redeemed = existing.loyaltyTransactions
+        .filter((transaction) => transaction.type === "REDEEMED")
+        .reduce((sum, transaction) => sum + Number(transaction.amount), 0);
+      if (redeemed > 0) {
+        const transaction = existing.loyaltyTransactions.find((item) => item.type === "REDEEMED");
+        await tx.loyaltyAccount.update({
+          where: { id: transaction.loyaltyAccountId },
+          data: {
+            moneyBalance: { increment: redeemed },
+            pointsBalance: { increment: redeemed },
+            totalRedeemed: { decrement: redeemed }
+          }
+        });
+        await tx.loyaltyTransaction.create({
+          data: {
+            companyId,
+            loyaltyAccountId: transaction.loyaltyAccountId,
+            clientId: transaction.clientId,
+            invoiceId: existing.id,
+            type: "CANCELLED",
+            amount: redeemed,
+            points: redeemed,
+            description: `Reverso de credito por cancelacion de ${existing.invoiceNumber}`
           }
         });
       }
@@ -262,9 +370,60 @@ export const cancelInvoice = async (req, res, next) => {
     }, { isolationLevel: "Serializable" });
 
     res.json(invoice);
+    await createAuditLog({ action: "INVOICE_CANCELLED", module: "FACTURACION", entityType: "Invoice", entityId: invoice.id, description: `Factura cancelada: ${invoice.invoiceNumber}`, req });
+    if (Number(invoice.loyaltyDiscount || 0) > 0) {
+      await createAuditLog({ action: "LOYALTY_REWARD_REVERSED", module: "FIDELIZACION", entityType: "Invoice", entityId: invoice.id, description: `Credito de fidelizacion revertido en ${invoice.invoiceNumber}`, req });
+    }
   } catch (error) {
     next(error);
   }
 };
 
 export const deleteInvoice = cancelInvoice;
+
+export const downloadInvoicePdf = async (req, res, next) => {
+  try {
+    const id = parseIdParam(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID de factura invalido" });
+
+    const companyId = requireCompanyId(req);
+    const invoice = await prisma.invoice.findFirst({ where: { id, companyId }, include: invoiceInclude });
+    if (!invoice) return res.status(404).json({ message: "Factura no encontrada" });
+
+    const [company, documentSettings] = await Promise.all([prisma.companySetting.findFirst({ where: { companyId } }), prisma.documentSetting.findFirst({ where: { companyId } })]);
+    sendDocumentPdf(res, {
+      filename: `${invoice.invoiceNumber}.pdf`,
+      title: `Factura ${invoice.invoiceNumber}`,
+      subtitle: "Documento generado desde Gestion Pro",
+      details: {
+        Fecha: invoice.createdAt,
+        Cliente: invoice.client?.name,
+        RNC: invoice.client?.rnc,
+        Estado: invoice.status
+      },
+      company,
+      documentSettings,
+      columns: [
+        { header: "Codigo", value: (item) => item.product?.code },
+        { header: "Producto", value: (item) => item.product?.name },
+        { header: "Cantidad", value: (item) => item.quantity },
+        { header: "Precio", value: (item) => Number(item.price) },
+        { header: "Total", value: (item) => Number(item.total) }
+      ],
+      rows: invoice.items,
+      totals: {
+        Subtotal: Number(invoice.subtotal),
+        Impuesto: Number(invoice.tax),
+        Descuento: Number(invoice.discount),
+        "Credito fidelidad": Number(invoice.loyaltyDiscount || 0),
+        Total: Number(invoice.total),
+        Pagado: Number(invoice.paidAmount),
+        Balance: Number(invoice.balance)
+      },
+      notes: invoice.notes || documentSettings?.invoiceNotes,
+      terms: documentSettings?.invoiceTerms
+    });
+  } catch (error) {
+    next(error);
+  }
+};
