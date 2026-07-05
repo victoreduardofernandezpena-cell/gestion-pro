@@ -10,7 +10,7 @@ import { getClients } from "../services/clientService";
 import { createInvoice } from "../services/invoiceService";
 import { getProducts } from "../services/productService";
 import { getDocumentSettings, getTaxes } from "../services/settingsService";
-import { findLoyaltyCredential, getClientLoyaltyAccount, getLoyaltySettings } from "../services/loyaltyService";
+import { createLoyaltyAccount, findLoyaltyCredential, getClientLoyaltyAccount, getLoyaltySettings } from "../services/loyaltyService";
 import { getErrorMessage } from "../utils/errors";
 import { money } from "../utils/format";
 
@@ -52,8 +52,9 @@ export default function CreateInvoice() {
     const subtotal = items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price), 0);
     const tax = subtotal * taxRate;
     const loyaltyDiscount = Number(loyaltyRedeemAmount || 0);
+    const maxLoyaltyRedeem = Math.max(subtotal - Number(discount || 0), 0);
     const total = subtotal + tax - Number(discount || 0) - loyaltyDiscount;
-    return { subtotal, tax, discount: Number(discount || 0), loyaltyDiscount, total };
+    return { subtotal, tax, discount: Number(discount || 0), loyaltyDiscount, maxLoyaltyRedeem, total };
   }, [items, discount, loyaltyRedeemAmount, taxRate]);
 
   const searchLoyaltyCredential = async () => {
@@ -81,6 +82,21 @@ export default function CreateInvoice() {
     } catch (err) {
       setLoyaltyAccount(null);
       setError(getErrorMessage(err, "Este cliente no tiene cuenta de fidelizacion"));
+    }
+  };
+
+  const createLoyaltyForSelectedClient = async () => {
+    if (!clientId) return setError("Debe seleccionar un cliente");
+    try {
+      const account = await createLoyaltyAccount(clientId);
+      setLoyaltyAccount(account);
+      setLoyaltyCode(account.credentialCode);
+      setLoyaltyRedeemAmount(0);
+      setError("");
+      toast.success("Cliente agregado a fidelizacion");
+    } catch (err) {
+      setError(getErrorMessage(err, "No se pudo crear la cuenta de fidelizacion"));
+      toast.error(getErrorMessage(err, "No se pudo crear la cuenta de fidelizacion"));
     }
   };
 
@@ -139,6 +155,7 @@ export default function CreateInvoice() {
     if (Number(loyaltyRedeemAmount || 0) < 0) return setError("El credito de fidelizacion no puede ser negativo");
     if (Number(loyaltyRedeemAmount || 0) > 0 && !loyaltyAccount) return setError("Debe buscar una credencial para usar credito");
     if (Number(loyaltyRedeemAmount || 0) > Number(loyaltyAccount?.moneyBalance || 0)) return setError("No puedes usar mas credito del balance disponible");
+    if (Number(loyaltyRedeemAmount || 0) > totals.maxLoyaltyRedeem) return setError("El credito fidelidad solo aplica al monto de productos, no al impuesto");
     if (totals.total < 0) return setError("El descuento no puede ser mayor que subtotal e impuestos");
 
     for (const item of items) {
@@ -239,6 +256,8 @@ export default function CreateInvoice() {
               <input value={loyaltyCode} onChange={(event) => setLoyaltyCode(event.target.value)} placeholder="Escanear o escribir credencial LF-000001" className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
               <button type="button" onClick={searchLoyaltyCredential} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Buscar credencial</button>
               <button type="button" onClick={associateSelectedClient} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Usar cliente</button>
+              <button type="button" onClick={createLoyaltyForSelectedClient} className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 font-semibold text-teal-800">Crear cuenta fiel</button>
+              <button type="button" onClick={() => navigate("/clientes")} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Nuevo cliente</button>
             </div>
             {loyaltyAccount && (
               <div className="mt-4 rounded-lg bg-teal-50 p-4 text-sm text-teal-800">
@@ -274,7 +293,8 @@ export default function CreateInvoice() {
             {loyaltySettings?.allowRedeem && (
               <label className="block">
                 <span className="text-slate-500">Credito fidelidad</span>
-                <input type="number" min={0} max={Number(loyaltyAccount?.moneyBalance || 0)} value={loyaltyRedeemAmount} onChange={(event) => setLoyaltyRedeemAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
+                <input type="number" min={0} max={Math.min(Number(loyaltyAccount?.moneyBalance || 0), totals.maxLoyaltyRedeem)} value={loyaltyRedeemAmount} onChange={(event) => setLoyaltyRedeemAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
+                <span className="mt-1 block text-xs text-slate-500">Maximo sin impuesto: {money.format(Math.min(Number(loyaltyAccount?.moneyBalance || 0), totals.maxLoyaltyRedeem))}</span>
               </label>
             )}
             {totals.loyaltyDiscount > 0 && <div className="flex justify-between"><span className="text-slate-500">Fidelidad aplicada</span><strong>{money.format(totals.loyaltyDiscount)}</strong></div>}

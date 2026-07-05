@@ -130,7 +130,10 @@ export const createInvoicePayment = async (req, res, next) => {
       const loyaltyAccount = await tx.loyaltyAccount.findUnique({ where: { companyId_clientId: { companyId, clientId: invoice.clientId } } });
       if (loyaltyAccount?.isActive) {
         const setting = await getActiveLoyaltySetting(tx, companyId);
-        const reward = calculateLoyaltyReward(amount, setting);
+        const purchaseBase = Math.max(Number(invoice.subtotal) - Number(invoice.discount || 0) - Number(invoice.loyaltyDiscount || 0), 0);
+        const invoiceTotal = Math.max(Number(invoice.total), 0);
+        const rewardableAmount = invoiceTotal > 0 ? roundMoney(amount * (purchaseBase / invoiceTotal)) : 0;
+        const reward = calculateLoyaltyReward(rewardableAmount, setting);
         if (reward > 0) {
           loyaltyReward = await tx.loyaltyTransaction.create({
             data: {

@@ -175,6 +175,7 @@ export const createInvoice = async (req, res, next) => {
       const tax = roundMoney(subtotal * taxRate);
       const discount = roundMoney(payload.discount);
       const loyaltyDiscount = roundMoney(payload.loyaltyRedeemAmount);
+      const maxLoyaltyRedeem = roundMoney(Math.max(subtotal - discount, 0));
 
       if (loyaltyDiscount > 0) {
         if (!payload.loyaltyAccountId) {
@@ -201,6 +202,11 @@ export const createInvoice = async (req, res, next) => {
         }
         if (loyaltyDiscount > Number(loyaltyAccount.moneyBalance)) {
           const error = new Error("No se puede usar mas credito de fidelizacion que el balance disponible");
+          error.status = 400;
+          throw error;
+        }
+        if (loyaltyDiscount > maxLoyaltyRedeem) {
+          const error = new Error("El credito de fidelizacion solo puede aplicarse al monto de productos, no al impuesto");
           error.status = 400;
           throw error;
         }
