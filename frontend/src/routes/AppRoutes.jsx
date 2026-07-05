@@ -16,6 +16,7 @@ import CreatePurchase from "../pages/CreatePurchase";
 import Dashboard from "../pages/Dashboard";
 import Bank from "../pages/Bank";
 import BankAccountDetail from "../pages/BankAccountDetail";
+import Brands from "../pages/Brands";
 import CashBox from "../pages/CashBox";
 import CashBoxDetail from "../pages/CashBoxDetail";
 import Expenses from "../pages/Expenses";
@@ -72,6 +73,7 @@ import Taxes from "../pages/Taxes";
 import NotFound from "../pages/NotFound";
 import Unauthorized from "../pages/Unauthorized";
 import Users from "../pages/Users";
+import Warehouses from "../pages/Warehouses";
 
 const modules = [];
 
@@ -94,6 +96,8 @@ export default function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute roles={["admin", "almacen"]} />}>
             <Route path="inventario" element={<Inventory />} />
+            <Route path="inventario/almacenes" element={<Warehouses />} />
+            <Route path="inventario/marcas" element={<Brands />} />
           </Route>
           <Route element={<ProtectedRoute roles={["admin", "almacen", "contabilidad"]} />}>
             <Route path="suppliers" element={<Suppliers />} />

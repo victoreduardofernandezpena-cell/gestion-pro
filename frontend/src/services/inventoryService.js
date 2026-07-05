@@ -5,8 +5,8 @@ export const getInventory = async () => {
   return data;
 };
 
-export const getInventoryMovements = async () => {
-  const { data } = await api.get("/inventory/movements");
+export const getInventoryMovements = async (filters = {}) => {
+  const { data } = await api.get("/inventory/movements", { params: filters });
   return data;
 };
 

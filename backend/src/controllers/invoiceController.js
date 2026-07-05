@@ -304,6 +304,104 @@ export const createInvoice = async (req, res, next) => {
   }
 };
 
+export const duplicateInvoice = async (req, res, next) => {
+  try {
+    const id = parseIdParam(req.params.id);
+    if (!id) return res.status(400).json({ message: "ID de factura invalido" });
+
+    const invoice = await prisma.$transaction(async (tx) => {
+      const companyId = requireCompanyId(req);
+      const source = await tx.invoice.findFirst({
+        where: { id, companyId },
+        include: { items: true, client: { select: { id: true } } }
+      });
+      if (!source) {
+        const error = new Error("Factura origen no encontrada");
+        error.status = 404;
+        throw error;
+      }
+      if (source.status === "CANCELLED") {
+        const error = new Error("No se puede duplicar una factura anulada");
+        error.status = 400;
+        throw error;
+      }
+
+      const productIds = [...new Set(source.items.map((item) => item.productId))];
+      const products = await tx.product.findMany({ where: { id: { in: productIds }, companyId } });
+      const productMap = new Map(products.map((product) => [product.id, product]));
+
+      for (const item of source.items) {
+        const product = productMap.get(item.productId);
+        if (!product) {
+          const error = new Error("Producto no encontrado al duplicar factura");
+          error.status = 404;
+          throw error;
+        }
+        if (product.stock < item.quantity) {
+          const error = new Error(`Stock insuficiente para ${product.name}. Disponible: ${product.stock}`);
+          error.status = 400;
+          throw error;
+        }
+      }
+
+      const subtotal = roundMoney(source.items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.price), 0));
+      const taxRate = await getDefaultTaxRate(tx, companyId);
+      const tax = roundMoney(subtotal * taxRate);
+      const discount = roundMoney(Number(source.discount || 0));
+      const total = roundMoney(subtotal + tax - discount);
+      if (total < 0) {
+        const error = new Error("La factura duplicada tendria total negativo");
+        error.status = 400;
+        throw error;
+      }
+
+      const documentSettings = await getDocumentSetting(tx, companyId);
+      const invoiceNumber = await getNextDocumentNumber(tx, "INVOICE", companyId);
+      const createdInvoice = await tx.invoice.create({
+        data: {
+          companyId,
+          invoiceNumber,
+          clientId: source.clientId,
+          subtotal,
+          tax,
+          discount,
+          loyaltyDiscount: 0,
+          total,
+          paidAmount: 0,
+          balance: total,
+          status: "PENDING",
+          notes: source.notes || documentSettings?.invoiceNotes || null
+        }
+      });
+
+      for (const item of source.items) {
+        const product = productMap.get(item.productId);
+        await tx.invoiceItem.create({
+          data: {
+            invoiceId: createdInvoice.id,
+            productId: item.productId,
+            quantity: item.quantity,
+            price: item.price,
+            cost: product.cost,
+            total: roundMoney(Number(item.quantity) * Number(item.price))
+          }
+        });
+        await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity } } });
+        await tx.inventoryMovement.create({
+          data: { companyId, productId: item.productId, type: "SALIDA", quantity: item.quantity, reason: `Factura duplicada #${invoiceNumber}`, document: invoiceNumber, reference: source.invoiceNumber }
+        });
+      }
+
+      return tx.invoice.findFirst({ where: { id: createdInvoice.id, companyId }, include: invoiceInclude });
+    }, { isolationLevel: "Serializable" });
+
+    res.status(201).json(invoice);
+    await createAuditLog({ action: "INVOICE_DUPLICATED", module: "FACTURACION", entityType: "Invoice", entityId: invoice.id, description: `Factura duplicada: ${invoice.invoiceNumber}`, req });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateInvoice = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);

@@ -26,8 +26,18 @@ export const cancelInvoice = async (id) => {
   return data;
 };
 
+export const duplicateInvoice = async (id) => {
+  const { data } = await api.post(`/invoices/${id}/duplicate`);
+  return data;
+};
+
 export const getInvoicePayments = async (id) => {
   const { data } = await api.get(`/invoices/${id}/payments`);
+  return data;
+};
+
+export const createInvoicePaymentBreakdown = async (id, payments) => {
+  const { data } = await api.post(`/invoices/${id}/payments/breakdown`, { payments });
   return data;
 };
 

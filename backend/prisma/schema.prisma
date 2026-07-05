@@ -172,6 +172,8 @@ model Company {
   auditLogs            AuditLog[]
   clients              Client[]
   products             Product[]
+  brands               Brand[]
+  warehouses           Warehouse[]
   inventoryMovements   InventoryMovement[]
   invoices             Invoice[]
   payments             Payment[]
@@ -268,12 +270,19 @@ model Product {
   itemType           String?
   status             String?
   barcode            String?
+  reference          String?
   sku                String?
   category           String?
   subcategory        String?
   family             String?
   brand              String?
+  brandId            Int?
+  brandRef           Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
   unit               String?
+  isComposite        Boolean             @default(false)
+  requiresLot        Boolean             @default(false)
+  requiresSerial     Boolean             @default(false)
+  requiresExpiration Boolean             @default(false)
   imageName          String?
   cost               Decimal             @db.Decimal(12, 2)
   price              Decimal             @db.Decimal(12, 2)
@@ -287,6 +296,37 @@ model Product {
 
   @@unique([companyId, code])
   @@index([companyId])
+  @@index([brandId])
+}
+
+model Brand {
+  id        Int       @id @default(autoincrement())
+  companyId Int
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name      String
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  products  Product[]
+
+  @@unique([companyId, name])
+  @@index([companyId])
+}
+
+model Warehouse {
+  id                 Int                 @id @default(autoincrement())
+  companyId          Int
+  company            Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  name               String
+  code               String
+  address            String?
+  isActive           Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  inventoryMovements InventoryMovement[]
+
+  @@unique([companyId, code])
+  @@index([companyId])
 }
 
 model InventoryMovement {
@@ -295,12 +335,22 @@ model InventoryMovement {
   company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   productId Int
   product   Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  warehouseId Int?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id], onDelete: SetNull)
   type      MovementType
   quantity  Int
+  cost      Decimal?     @db.Decimal(12, 2)
+  reference String?
+  document  String?
+  note      String?
+  lotNumber String?
+  serialNumber String?
+  expirationDate DateTime?
   reason    String?
   createdAt DateTime     @default(now())
 
   @@index([companyId])
+  @@index([warehouseId])
 }
 
 model Invoice {

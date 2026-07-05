@@ -1,18 +1,20 @@
 import { useEffect, useState } from "react";
 import { ArrowDownToLine, ArrowUpFromLine, RotateCcw } from "lucide-react";
 import { createInventoryMovement, getInventory, getInventoryMovements } from "../services/inventoryService";
+import { getWarehouses } from "../services/warehouseService";
 import AlertMessage from "../components/AlertMessage";
 import DataTable from "../components/DataTable";
 import EmptyState from "../components/EmptyState";
 import FormField from "../components/FormField";
 import { getErrorMessage } from "../utils/errors";
 
-const emptyMovement = { productId: "", type: "ENTRADA", quantity: 1, reason: "" };
+const emptyMovement = { productId: "", warehouseId: "", type: "ENTRADA", quantity: 1, cost: "", reference: "", document: "", lotNumber: "", serialNumber: "", expirationDate: "", reason: "" };
 const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 
 export default function Inventory() {
   const [inventory, setInventory] = useState([]);
   const [movements, setMovements] = useState([]);
+  const [warehouses, setWarehouses] = useState([]);
   const [form, setForm] = useState(emptyMovement);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -21,9 +23,10 @@ export default function Inventory() {
   const load = async () => {
     setLoading(true);
     try {
-      const [inventoryData, movementData] = await Promise.all([getInventory(), getInventoryMovements()]);
+      const [inventoryData, movementData, warehouseData] = await Promise.all([getInventory(), getInventoryMovements(), getWarehouses()]);
       setInventory(inventoryData);
       setMovements(movementData);
+      setWarehouses(warehouseData.filter((warehouse) => warehouse.isActive));
       if (!form.productId && inventoryData[0]) setForm((current) => ({ ...current, productId: inventoryData[0].id }));
       setError("");
     } catch (err) {
@@ -92,12 +95,24 @@ export default function Inventory() {
               <option key={product.id} value={product.id}>{product.code} - {product.name}</option>
             ))}
           </FormField>
+          <FormField label="Almacen" as="select" value={form.warehouseId} onChange={(value) => setForm({ ...form, warehouseId: value })}>
+            <option value="">Principal / sin asignar</option>
+            {warehouses.map((warehouse) => (
+              <option key={warehouse.id} value={warehouse.id}>{warehouse.code} - {warehouse.name}</option>
+            ))}
+          </FormField>
           <FormField label="Tipo" as="select" value={form.type} onChange={(value) => setForm({ ...form, type: value })}>
             <option value="ENTRADA">Entrada</option>
             <option value="SALIDA">Salida</option>
             <option value="AJUSTE">Ajuste</option>
           </FormField>
           <FormField label={form.type === "AJUSTE" ? "Nuevo stock" : "Cantidad"} type="number" min={0} value={form.quantity} onChange={(value) => setForm({ ...form, quantity: value })} required />
+          <FormField label="Costo" type="number" min={0} value={form.cost} onChange={(value) => setForm({ ...form, cost: value })} />
+          <FormField label="Referencia" value={form.reference} onChange={(value) => setForm({ ...form, reference: value })} />
+          <FormField label="Documento" value={form.document} onChange={(value) => setForm({ ...form, document: value })} />
+          <FormField label="Lote" value={form.lotNumber} onChange={(value) => setForm({ ...form, lotNumber: value })} />
+          <FormField label="Serie" value={form.serialNumber} onChange={(value) => setForm({ ...form, serialNumber: value })} />
+          <FormField label="Fecha expiracion" type="date" value={form.expirationDate} onChange={(value) => setForm({ ...form, expirationDate: value })} />
           <FormField label="Razon" as="textarea" value={form.reason} onChange={(value) => setForm({ ...form, reason: value })} required={form.type === "AJUSTE"} />
           <button disabled={saving || inventory.length === 0} className="rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? "Registrando..." : "Registrar"}</button>
         </form>
@@ -114,17 +129,32 @@ export default function Inventory() {
         {movements.length === 0 ? (
           <EmptyState title="Sin movimientos" description="Los movimientos de inventario apareceran aqui." />
         ) : (
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {movements.map((movement) => (
-              <div key={movement.id} className="rounded-lg border border-slate-200 p-4">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 font-semibold text-slate-900">{typeIcon[movement.type]} {movement.type}</span>
-                  <span className="text-sm text-slate-500">{movement.quantity}</span>
-                </div>
-                <p className="mt-2 text-sm text-slate-600">{movement.product?.code} - {movement.product?.name}</p>
-                {movement.reason && <p className="mt-1 text-xs text-slate-500">{movement.reason}</p>}
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="min-w-[980px] w-full text-sm">
+              <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  {["Tipo", "Producto", "Almacen", "Entrada", "Salida", "Costo", "Referencia", "Documento", "Lote", "Serie", "Vence", "Nota"].map((header) => <th key={header} className="px-3 py-2">{header}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {movements.map((movement) => (
+                  <tr key={movement.id} className="border-t border-slate-100">
+                    <td className="px-3 py-2"><span className="flex items-center gap-2">{typeIcon[movement.type]} {movement.type}</span></td>
+                    <td className="px-3 py-2">{movement.product?.code} - {movement.product?.name}</td>
+                    <td className="px-3 py-2">{movement.warehouse?.name || "-"}</td>
+                    <td className="px-3 py-2 text-right">{movement.type === "ENTRADA" ? movement.quantity : ""}</td>
+                    <td className="px-3 py-2 text-right">{movement.type === "SALIDA" ? movement.quantity : ""}</td>
+                    <td className="px-3 py-2 text-right">{movement.cost ? money.format(Number(movement.cost)) : "-"}</td>
+                    <td className="px-3 py-2">{movement.reference || "-"}</td>
+                    <td className="px-3 py-2">{movement.document || "-"}</td>
+                    <td className="px-3 py-2">{movement.lotNumber || "-"}</td>
+                    <td className="px-3 py-2">{movement.serialNumber || "-"}</td>
+                    <td className="px-3 py-2">{movement.expirationDate ? new Date(movement.expirationDate).toLocaleDateString("es-DO") : "-"}</td>
+                    <td className="px-3 py-2">{movement.note || movement.reason || "-"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </section>

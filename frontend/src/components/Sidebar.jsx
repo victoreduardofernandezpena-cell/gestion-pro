@@ -31,6 +31,8 @@ const items = [
   { label: "Clientes", path: "/clientes", icon: Users, roles: ["admin", "ventas"] },
   { label: "Productos", path: "/productos", icon: Package, roles: ["admin", "ventas", "almacen"] },
   { label: "Inventario", path: "/inventario", icon: Boxes, roles: ["admin", "almacen"] },
+  { label: "Almacenes", path: "/inventario/almacenes", icon: Building2, roles: ["admin", "almacen"] },
+  { label: "Marcas", path: "/inventario/marcas", icon: NotebookTabs, roles: ["admin", "almacen"] },
   { label: "Proveedores", path: "/suppliers", icon: Truck, roles: ["admin", "almacen", "contabilidad"] },
   { label: "Compras", path: "/purchases", icon: ShoppingCart, roles: ["admin", "almacen", "contabilidad"] },
   { label: "Facturacion", path: "/invoices", icon: Receipt, roles: ["admin", "ventas", "contabilidad"] },

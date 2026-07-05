@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Camera, Edit2, Save, Search, Trash2, X } from "lucide-react";
 import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
+import { getBrands } from "../services/brandService";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import DataTable from "../components/DataTable";
@@ -14,12 +15,18 @@ const emptyProduct = {
   itemType: "",
   status: "Activo",
   barcode: "",
+  reference: "",
   sku: "",
   category: "",
   subcategory: "",
   family: "",
   brand: "",
+  brandId: "",
   unit: "",
+  isComposite: false,
+  requiresLot: false,
+  requiresSerial: false,
+  requiresExpiration: false,
   imageName: "",
   cost: 0,
   price: 0,
@@ -34,6 +41,7 @@ const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [form, setForm] = useState(emptyProduct);
   const [meta, setMeta] = useState(emptyMeta);
   const [editingId, setEditingId] = useState(null);
@@ -59,6 +67,9 @@ export default function Products() {
     getCategories("PRODUCT")
       .then((rows) => setProductTypes(rows.filter((row) => row.isActive)))
       .catch(() => setProductTypes([]));
+    getBrands()
+      .then((rows) => setBrands(rows.filter((row) => row.isActive)))
+      .catch(() => setBrands([]));
   }, []);
 
   const submit = async (event) => {
@@ -210,9 +221,11 @@ export default function Products() {
                   <input value={form.barcode} onChange={(event) => updateMeta("barcode", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-center text-xl text-slate-300">+</span>
                   <span className="self-center text-xs font-medium text-slate-700">Referencia</span>
-                  <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
+                  <input value={form.reference} onChange={(event) => updateMeta("reference", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-xs font-medium text-slate-700">SKU</span>
                   <input value={form.sku} onChange={(event) => updateMeta("sku", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
+                  <span className="self-center text-xs font-medium text-slate-700">Codigo</span>
+                  <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                 </div>
               </div>
 
@@ -241,10 +254,12 @@ export default function Products() {
                   </select>
 
                   <span className="self-center text-xs font-medium text-slate-700">Marca</span>
-                  <select value={form.brand} onChange={(event) => updateMeta("brand", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.brandId || ""} onChange={(event) => {
+                    const brand = brands.find((item) => String(item.id) === event.target.value);
+                    setForm({ ...form, brandId: event.target.value, brand: brand?.name || "" });
+                  }} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
-                    <option value="CLARO ERP">CLARO ERP</option>
-                    <option value="Generica">Generica</option>
+                    {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
                   </select>
                   <span className="self-center text-xs font-medium text-slate-700">Item Unidad</span>
                   <select value={form.unit} onChange={(event) => updateMeta("unit", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
@@ -265,6 +280,12 @@ export default function Products() {
                   <input type="number" min={0} value={form.stock} onChange={(event) => setForm({ ...form, stock: event.target.value })} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-right text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-xs font-medium text-slate-700">Stock minimo</span>
                   <input type="number" min={0} value={form.minimumStock} onChange={(event) => setForm({ ...form, minimumStock: event.target.value })} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-right text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
+                </div>
+                <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-700">
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.isComposite} onChange={(event) => setForm({ ...form, isComposite: event.target.checked })} /> Compuesto</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresLot} onChange={(event) => setForm({ ...form, requiresLot: event.target.checked })} /> Requiere lote</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresSerial} onChange={(event) => setForm({ ...form, requiresSerial: event.target.checked })} /> Requiere serie</label>
+                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresExpiration} onChange={(event) => setForm({ ...form, requiresExpiration: event.target.checked })} /> Tiene vencimiento</label>
                 </div>
               </div>
             </div>
