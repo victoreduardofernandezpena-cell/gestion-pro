@@ -170,9 +170,13 @@ export default function Products() {
       title="Productos"
       subtitle="Crea y administra los productos del inventario con codificacion, categorizacion y reglas de control."
       actions={(
-        <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
-          <Search size={18} className="text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProducts(event.currentTarget.value)} placeholder="Buscar nombre, codigo, SKU" className="w-64 bg-transparent text-sm outline-none placeholder:text-slate-400" />
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
+            <Search size={18} className="text-slate-400" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProducts(event.currentTarget.value)} placeholder="Buscar nombre, codigo, SKU" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-64" />
+          </div>
+          <Button type="button" variant="outline" icon={Search} onClick={() => loadProducts(search)}>Buscar</Button>
+          <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => { setSearch(""); loadProducts(""); }}>Limpiar</Button>
         </div>
       )}
     >

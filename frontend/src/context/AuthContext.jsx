@@ -3,14 +3,28 @@ import { loginRequest, registerRequest } from "../services/authService";
 
 const AuthContext = createContext(null);
 
+const clearStoredSession = () => {
+  localStorage.removeItem("erp_token");
+  localStorage.removeItem("erp_user");
+  localStorage.removeItem("erp_company");
+};
+
+const readJsonItem = (key) => {
+  try {
+    const stored = localStorage.getItem(key);
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    clearStoredSession();
+    return null;
+  }
+};
+
 const readStoredUser = () => {
-  const stored = localStorage.getItem("erp_user");
-  return stored ? JSON.parse(stored) : null;
+  return readJsonItem("erp_user");
 };
 
 const readStoredCompany = () => {
-  const stored = localStorage.getItem("erp_company");
-  return stored ? JSON.parse(stored) : null;
+  return readJsonItem("erp_company");
 };
 
 export function AuthProvider({ children }) {
@@ -41,9 +55,7 @@ export function AuthProvider({ children }) {
   };
 
   const logout = () => {
-    localStorage.removeItem("erp_token");
-    localStorage.removeItem("erp_user");
-    localStorage.removeItem("erp_company");
+    clearStoredSession();
     setToken(null);
     setUser(null);
     setCompany(null);

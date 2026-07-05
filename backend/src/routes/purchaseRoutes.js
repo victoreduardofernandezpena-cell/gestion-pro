@@ -14,12 +14,12 @@ import { authorizeRoles } from "../middleware/roleMiddleware.js";
 const router = Router();
 
 router.use(authenticate);
-router.get("/", authorizeRoles("admin", "almacen", "contabilidad"), listPurchases);
-router.get("/:id/pdf", authorizeRoles("admin", "almacen", "contabilidad"), downloadPurchasePdf);
-router.get("/:id", authorizeRoles("admin", "almacen", "contabilidad"), getPurchase);
-router.post("/", authorizeRoles("admin", "almacen"), createPurchase);
-router.patch("/:id/cancel", authorizeRoles("admin", "almacen"), cancelPurchase);
-router.get("/:id/payments", authorizeRoles("admin", "almacen", "contabilidad"), listPurchasePayments);
-router.post("/:id/payments", authorizeRoles("admin", "almacen", "contabilidad"), createPurchasePayment);
+router.get("/", authorizeRoles("admin", "contabilidad"), listPurchases);
+router.get("/:id/pdf", authorizeRoles("admin", "contabilidad"), downloadPurchasePdf);
+router.get("/:id", authorizeRoles("admin", "contabilidad"), getPurchase);
+router.post("/", authorizeRoles("admin", "contabilidad"), createPurchase);
+router.patch("/:id/cancel", authorizeRoles("admin", "contabilidad"), cancelPurchase);
+router.get("/:id/payments", authorizeRoles("admin", "contabilidad"), listPurchasePayments);
+router.post("/:id/payments", authorizeRoles("admin", "contabilidad"), createPurchasePayment);
 
 export default router;

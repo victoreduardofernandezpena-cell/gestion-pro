@@ -55,7 +55,8 @@ const today = new Date().toISOString().slice(0, 10);
 
 const canSeeFinance = (role) => ["admin", "contabilidad"].includes(role);
 const canSeeSales = (role) => ["admin", "ventas", "contabilidad"].includes(role);
-const canSeeInventory = (role) => ["admin", "almacen", "contabilidad"].includes(role);
+const canSeeInventory = (role) => ["admin", "almacen"].includes(role);
+const canSeePurchases = (role) => ["admin", "contabilidad"].includes(role);
 const formatAxisMoney = (value) => {
   const amount = Number(value || 0);
   if (Math.abs(amount) >= 1000000) return `${Math.round(amount / 1000000)}M`;
@@ -102,7 +103,7 @@ export default function Dashboard() {
     return [
       source.lowStock?.length ? { title: "Stock bajo", description: `${source.lowStock.length} productos estan por debajo del minimo.` } : null,
       source.pendingInvoices?.length && canSeeSales(role) ? { title: "Facturas pendientes", description: `${source.pendingInvoices.length} facturas tienen balance pendiente.` } : null,
-      source.pendingPurchases?.length && canSeeInventory(role) ? { title: "Compras pendientes", description: `${source.pendingPurchases.length} compras tienen balance pendiente.` } : null,
+      source.pendingPurchases?.length && canSeePurchases(role) ? { title: "Compras pendientes", description: `${source.pendingPurchases.length} compras tienen balance pendiente.` } : null,
       source.highReceivables?.length && canSeeFinance(role) ? { title: "Cuentas por cobrar altas", description: `${source.highReceivables.length} balances superan el umbral.` } : null,
       source.highExpenses?.length && canSeeFinance(role) ? { title: "Gastos altos", description: `${source.highExpenses.length} gastos relevantes en el periodo.` } : null,
       source.backupWarning && role === "admin" ? { title: "Backups", description: source.backupWarning.message } : null,
@@ -122,7 +123,7 @@ export default function Dashboard() {
     canSeeFinance(role) && { title: "Caja chica", value: money.format(summary.cashBoxBalance || 0), icon: Wallet, tone: "accent" },
     canSeeFinance(role) && { title: "Gastos", value: money.format(summary.totalExpenses || 0), icon: FileText, tone: "amber" },
     ["admin", "ventas"].includes(role) && { title: "Fidelizacion", value: money.format(summary.loyaltyPendingBalance || 0), icon: BadgeDollarSign, tone: "violet" },
-    canSeeInventory(role) && { title: "Compras", value: money.format(summary.totalPurchases || 0), icon: ShoppingCart, tone: "blue" }
+    canSeePurchases(role) && { title: "Compras", value: money.format(summary.totalPurchases || 0), icon: ShoppingCart, tone: "blue" }
   ].filter(Boolean);
 
   if (loading) return <PageLoader message="Cargando dashboard avanzado..." />;
@@ -183,7 +184,7 @@ export default function Dashboard() {
               <Tooltip content={<CustomChartTooltip />} cursor={{ stroke: chartTheme.muted, strokeDasharray: "4 4" }} />
               <Legend iconType="circle" wrapperStyle={{ color: chartTheme.text, paddingTop: 16 }} />
               {canSeeSales(role) && <Line type="monotone" dataKey="sales" name="Ventas" stroke={chartTheme.colors.sales} strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />}
-              {canSeeInventory(role) && <Line type="monotone" dataKey="purchases" name="Compras" stroke={chartTheme.colors.purchases} strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />}
+              {canSeePurchases(role) && <Line type="monotone" dataKey="purchases" name="Compras" stroke={chartTheme.colors.purchases} strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />}
               {canSeeFinance(role) && <Line type="monotone" dataKey="profit" name="Ganancia" stroke={chartTheme.colors.profit} strokeWidth={3} dot={{ r: 3, strokeWidth: 2 }} activeDot={{ r: 5 }} />}
             </LineChart>
           </ResponsiveContainer>
@@ -207,7 +208,7 @@ export default function Dashboard() {
           </ChartCard>
         )}
 
-        {canSeeInventory(role) && (
+        {canSeeSales(role) && (
           <ChartCard title="Top productos vendidos" subtitle="Productos con mayor venta acumulada">
             <div className="h-72">
               <ResponsiveContainer width="100%" height="100%">
@@ -273,7 +274,7 @@ export default function Dashboard() {
       </section>
 
       <section className="grid gap-6 xl:grid-cols-2">
-        {canSeeInventory(role) && <RecentActivityList title="Ultimas compras" items={recent.purchases || []} getTitle={(item) => item.purchaseNumber} getMeta={(item) => item.supplier?.name} getAmount={(item) => item.total} />}
+        {canSeePurchases(role) && <RecentActivityList title="Ultimas compras" items={recent.purchases || []} getTitle={(item) => item.purchaseNumber} getMeta={(item) => item.supplier?.name} getAmount={(item) => item.total} />}
         {canSeeInventory(role) && <RecentActivityList title="Movimientos de inventario" items={recent.inventoryMovements || []} getTitle={(item) => `${item.type} - ${item.product?.name || ""}`} getMeta={(item) => item.reason || item.product?.code} />}
         {["admin", "ventas"].includes(role) && <RecentActivityList title="Fidelizacion reciente" items={recent.loyaltyTransactions || []} getTitle={(item) => `${item.type} - ${item.client?.name || ""}`} getMeta={(item) => item.invoice?.invoiceNumber || item.description} getAmount={(item) => item.amount} />}
         {role === "admin" && <RecentActivityList title="Auditoria reciente" items={recent.auditLogs || []} getTitle={(item) => item.action} getMeta={(item) => item.user?.name || item.module} />}

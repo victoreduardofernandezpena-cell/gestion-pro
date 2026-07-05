@@ -6,10 +6,10 @@ import { authorizeRoles } from "../middleware/roleMiddleware.js";
 const router = Router();
 
 router.use(authenticate);
-router.get("/", authorizeRoles("admin", "almacen", "contabilidad"), listSuppliers);
-router.get("/:id", authorizeRoles("admin", "almacen", "contabilidad"), getSupplier);
-router.post("/", authorizeRoles("admin", "almacen"), createSupplier);
-router.put("/:id", authorizeRoles("admin", "almacen"), updateSupplier);
+router.get("/", authorizeRoles("admin", "contabilidad"), listSuppliers);
+router.get("/:id", authorizeRoles("admin", "contabilidad"), getSupplier);
+router.post("/", authorizeRoles("admin", "contabilidad"), createSupplier);
+router.put("/:id", authorizeRoles("admin", "contabilidad"), updateSupplier);
 router.delete("/:id", authorizeRoles("admin"), deleteSupplier);
 
 export default router;

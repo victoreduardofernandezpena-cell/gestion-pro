@@ -10,10 +10,18 @@ export const listInventory = async (req, res, next) => {
         id: true,
         code: true,
         name: true,
+        sku: true,
+        reference: true,
+        category: true,
+        brand: true,
+        brandRef: { select: { id: true, name: true } },
         stock: true,
         minimumStock: true,
         cost: true,
-        price: true
+        price: true,
+        requiresLot: true,
+        requiresSerial: true,
+        requiresExpiration: true
       },
       orderBy: { name: "asc" }
     });
@@ -24,6 +32,82 @@ export const listInventory = async (req, res, next) => {
         isLowStock: product.stock <= product.minimumStock
       }))
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getInventoryAlerts = async (req, res, next) => {
+  try {
+    const companyId = requireCompanyId(req);
+    const today = new Date();
+    const soon = new Date(today);
+    soon.setDate(soon.getDate() + 30);
+
+    const [products, expiringMovements, expiredMovements] = await Promise.all([
+      prisma.product.findMany({
+        where: { companyId },
+        select: {
+          id: true,
+          code: true,
+          name: true,
+          stock: true,
+          minimumStock: true,
+          cost: true,
+          brand: true,
+          brandRef: { select: { name: true } },
+          category: true
+        },
+        orderBy: { name: "asc" }
+      }),
+      prisma.inventoryMovement.findMany({
+        where: {
+          companyId,
+          expirationDate: { gte: today, lte: soon }
+        },
+        include: {
+          product: { select: { code: true, name: true } },
+          warehouse: { select: { code: true, name: true } }
+        },
+        orderBy: { expirationDate: "asc" },
+        take: 25
+      }),
+      prisma.inventoryMovement.findMany({
+        where: {
+          companyId,
+          expirationDate: { lt: today }
+        },
+        include: {
+          product: { select: { code: true, name: true } },
+          warehouse: { select: { code: true, name: true } }
+        },
+        orderBy: { expirationDate: "desc" },
+        take: 25
+      })
+    ]);
+
+    const lowStock = products.filter((product) => product.stock > 0 && product.stock <= product.minimumStock);
+    const outOfStock = products.filter((product) => product.stock <= 0);
+    const withoutCost = products.filter((product) => Number(product.cost || 0) <= 0);
+    const withoutBrand = products.filter((product) => !product.brandRef?.name && !product.brand);
+
+    res.json({
+      summary: {
+        totalProducts: products.length,
+        lowStock: lowStock.length,
+        outOfStock: outOfStock.length,
+        withoutCost: withoutCost.length,
+        withoutBrand: withoutBrand.length,
+        expiringSoon: expiringMovements.length,
+        expired: expiredMovements.length
+      },
+      lowStock,
+      outOfStock,
+      withoutCost,
+      withoutBrand,
+      expiringSoon: expiringMovements,
+      expired: expiredMovements
+    });
   } catch (error) {
     next(error);
   }

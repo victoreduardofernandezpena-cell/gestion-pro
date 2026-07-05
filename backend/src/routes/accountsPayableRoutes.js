@@ -6,7 +6,7 @@ import { authorizeRoles } from "../middleware/roleMiddleware.js";
 const router = Router();
 
 router.use(authenticate);
-router.get("/", authorizeRoles("admin", "almacen", "contabilidad"), listAccountsPayable);
-router.get("/summary", authorizeRoles("admin", "almacen", "contabilidad"), getAccountsPayableSummary);
+router.get("/", authorizeRoles("admin", "contabilidad"), listAccountsPayable);
+router.get("/summary", authorizeRoles("admin", "contabilidad"), getAccountsPayableSummary);
 
 export default router;

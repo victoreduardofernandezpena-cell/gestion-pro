@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Plus, Search, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import DataTable from "../components/DataTable";
 import FormField from "../components/FormField";
+import { ActionBar, FormCard, FormGrid, FormPageLayout, FormSection } from "../components/FormLayout";
 import { getClients } from "../services/clientService";
 import { createInvoice } from "../services/invoiceService";
 import { getProducts } from "../services/productService";
@@ -20,6 +21,7 @@ export default function CreateInvoice() {
   const [products, setProducts] = useState([]);
   const [clientId, setClientId] = useState("");
   const [selectedProductId, setSelectedProductId] = useState("");
+  const [productSearch, setProductSearch] = useState("");
   const [items, setItems] = useState([]);
   const [discount, setDiscount] = useState(0);
   const [loyaltyCode, setLoyaltyCode] = useState("");
@@ -56,6 +58,21 @@ export default function CreateInvoice() {
     const total = subtotal + tax - Number(discount || 0) - loyaltyDiscount;
     return { subtotal, tax, discount: Number(discount || 0), loyaltyDiscount, maxLoyaltyRedeem, total };
   }, [items, discount, loyaltyRedeemAmount, taxRate]);
+
+  const filteredProducts = useMemo(() => {
+    const query = productSearch.trim().toLowerCase();
+    if (!query) return products;
+    return products.filter((product) => [product.code, product.name, product.sku, product.reference, product.barcode]
+      .filter(Boolean)
+      .some((value) => String(value).toLowerCase().includes(query)));
+  }, [productSearch, products]);
+
+  useEffect(() => {
+    if (filteredProducts.length > 0 && !filteredProducts.some((product) => String(product.id) === String(selectedProductId))) {
+      setSelectedProductId(filteredProducts[0].id);
+    }
+    if (filteredProducts.length === 0 && selectedProductId) setSelectedProductId("");
+  }, [filteredProducts, selectedProductId]);
 
   const searchLoyaltyCredential = async () => {
     if (!loyaltyCode.trim()) return setError("Escribe o escanea una credencial");
@@ -198,7 +215,7 @@ export default function CreateInvoice() {
           max={item.stock}
           value={item.quantity}
           onChange={(event) => updateItem(item.productId, { quantity: event.target.value })}
-          className="w-24 rounded-lg border border-slate-300 px-2 py-1 outline-none focus:border-accent"
+          className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-1 text-slate-900 outline-none focus:border-accent dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
         />
       )
     },
@@ -211,7 +228,7 @@ export default function CreateInvoice() {
           min={0}
           value={item.price}
           onChange={(event) => updateItem(item.productId, { price: event.target.value })}
-          className="w-28 rounded-lg border border-slate-300 px-2 py-1 outline-none focus:border-accent"
+          className="w-28 rounded-lg border border-slate-300 bg-white px-2 py-1 text-slate-900 outline-none focus:border-accent dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100"
         />
       )
     },
@@ -228,83 +245,119 @@ export default function CreateInvoice() {
     }
   ];
 
-  if (loading) return <div className="rounded-lg bg-white p-6 shadow-soft">Cargando formulario...</div>;
+  if (loading) return <FormCard>Cargando formulario...</FormCard>;
 
   return (
-    <form onSubmit={submit} className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-accent">Facturacion</p>
-        <h1 className="text-3xl font-semibold text-slate-950">Crear factura</h1>
-      </div>
+    <form onSubmit={submit}>
+      <FormPageLayout
+        eyebrow="Facturacion"
+        title="Crear factura"
+        subtitle="Selecciona cliente, agrega productos, revisa totales y registra la venta con validaciones de stock."
+        actions={<Button type="button" variant="outline" icon={ArrowLeft} onClick={() => navigate("/invoices")}>Volver</Button>}
+      >
 
       <AlertMessage>{error}</AlertMessage>
 
       <section className="grid gap-6 xl:grid-cols-[1fr_340px]">
         <div className="space-y-6">
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-            <FormField label="Cliente" as="select" value={clientId} onChange={setClientId} required>
-              {clients.map((client) => (
-                <option key={client.id} value={client.id}>{client.name}</option>
-              ))}
-            </FormField>
-            <FormField label="Notas" as="textarea" value={notes} onChange={setNotes} />
-          </div>
+          <FormCard title="Cliente y documento" description="Define a nombre de quien se emitira la factura.">
+            <FormGrid columns="xl:grid-cols-3">
+              <FormField label="Cliente" as="select" value={clientId} onChange={setClientId} required className="xl:col-span-2">
+                {clients.map((client) => (
+                  <option key={client.id} value={client.id}>{client.name}</option>
+                ))}
+              </FormField>
+              <FormField label="Condicion" as="select" value="CREDITO" onChange={() => {}} disabled>
+                <option value="CREDITO">Credito / pendiente</option>
+              </FormField>
+              <FormField label="Notas" as="textarea" value={notes} onChange={setNotes} className="xl:col-span-3" />
+            </FormGrid>
+          </FormCard>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-            <h2 className="mb-4 text-lg font-semibold">Cliente Fiel</h2>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <input value={loyaltyCode} onChange={(event) => setLoyaltyCode(event.target.value)} placeholder="Escanear o escribir credencial LF-000001" className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
-              <button type="button" onClick={searchLoyaltyCredential} className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Buscar credencial</button>
-              <button type="button" onClick={associateSelectedClient} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Usar cliente</button>
-              <button type="button" onClick={createLoyaltyForSelectedClient} className="rounded-lg border border-teal-200 bg-teal-50 px-4 py-2 font-semibold text-teal-800">Crear cuenta fiel</button>
-              <button type="button" onClick={() => navigate("/clientes")} className="rounded-lg border border-slate-300 bg-white px-4 py-2 font-semibold text-slate-700">Nuevo cliente</button>
+          <FormCard title="Cliente Fiel" description="Escanea una credencial o asocia el cliente seleccionado al programa de puntos.">
+            <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_auto_auto]">
+              <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950">
+                <Search size={18} className="text-slate-400" />
+                <input value={loyaltyCode} onChange={(event) => setLoyaltyCode(event.target.value)} placeholder="Escanear o escribir credencial LF-000001" className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100" />
+              </div>
+              <Button type="button" variant="secondary" onClick={searchLoyaltyCredential}>Buscar</Button>
+              <Button type="button" variant="outline" onClick={associateSelectedClient}>Usar cliente</Button>
+              <Button type="button" variant="outline" onClick={createLoyaltyForSelectedClient}>Crear cuenta fiel</Button>
             </div>
             {loyaltyAccount && (
-              <div className="mt-4 rounded-lg bg-teal-50 p-4 text-sm text-teal-800">
+              <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-800 dark:border-teal-900/70 dark:bg-teal-950/35 dark:text-teal-200">
                 <p className="font-semibold">{loyaltyAccount.client?.name} | {loyaltyAccount.credentialCode}</p>
                 <p>Balance disponible: {money.format(Number(loyaltyAccount.moneyBalance))}</p>
               </div>
             )}
-          </div>
+          </FormCard>
 
-          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-            <h2 className="mb-4 text-lg font-semibold">Productos</h2>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row">
-              <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="min-h-10 flex-1 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent">
-                {products.map((product) => (
-                  <option key={product.id} value={product.id}>{product.code} - {product.name} | Stock: {product.stock}</option>
-                ))}
-              </select>
-              <Button variant="secondary" icon={Plus} onClick={addProduct}>Agregar</Button>
-            </div>
+          <FormCard title="Productos" description="Busca por codigo, nombre, SKU o referencia antes de agregar a la factura.">
+            <FormSection title="Agregar item">
+              <div className="grid gap-3 lg:grid-cols-[240px_minmax(0,1fr)_auto]">
+                <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 dark:border-slate-700 dark:bg-slate-950">
+                  <Search size={18} className="text-slate-400" />
+                  <input value={productSearch} onChange={(event) => setProductSearch(event.target.value)} placeholder="Buscar producto" className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400 dark:text-slate-100" />
+                </div>
+                <select value={selectedProductId} onChange={(event) => setSelectedProductId(event.target.value)} className="min-h-11 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none focus:border-accent focus:ring-4 focus:ring-teal-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-teal-900/40">
+                  {filteredProducts.map((product) => (
+                    <option key={product.id} value={product.id}>{product.code} - {product.name} | Stock: {product.stock}</option>
+                  ))}
+                  {filteredProducts.length === 0 && <option value="">Sin productos encontrados</option>}
+                </select>
+                <Button type="button" variant="secondary" icon={Plus} onClick={addProduct} disabled={!selectedProductId || filteredProducts.length === 0}>Agregar</Button>
+              </div>
+            </FormSection>
             <DataTable columns={columns} rows={items} minWidth="840px" getRowKey={(row) => row.productId} emptyTitle="Sin productos" emptyDescription="Agrega productos para crear la factura." />
-          </div>
+          </FormCard>
         </div>
 
-        <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
-          <h2 className="mb-4 text-lg font-semibold">Resumen</h2>
-          <div className="space-y-3 text-sm">
-            <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><strong>{money.format(totals.subtotal)}</strong></div>
-            <div className="flex justify-between"><span className="text-slate-500">Impuesto {Math.round(taxRate * 10000) / 100}%</span><strong>{money.format(totals.tax)}</strong></div>
-            <label className="block">
-              <span className="text-slate-500">Descuento</span>
-              <input type="number" min={0} value={discount} onChange={(event) => setDiscount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
-            </label>
-            {loyaltySettings?.allowRedeem && (
-              <label className="block">
-                <span className="text-slate-500">Credito fidelidad</span>
-                <input type="number" min={0} max={Math.min(Number(loyaltyAccount?.moneyBalance || 0), totals.maxLoyaltyRedeem)} value={loyaltyRedeemAmount} onChange={(event) => setLoyaltyRedeemAmount(event.target.value)} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent" />
-                <span className="mt-1 block text-xs text-slate-500">Maximo sin impuesto: {money.format(Math.min(Number(loyaltyAccount?.moneyBalance || 0), totals.maxLoyaltyRedeem))}</span>
-              </label>
-            )}
-            {totals.loyaltyDiscount > 0 && <div className="flex justify-between"><span className="text-slate-500">Fidelidad aplicada</span><strong>{money.format(totals.loyaltyDiscount)}</strong></div>}
-            <div className="border-t border-slate-200 pt-3">
-              <div className="flex justify-between text-base"><span>Total</span><strong>{money.format(totals.total)}</strong></div>
+        <aside className="space-y-6 xl:sticky xl:top-24 xl:self-start">
+          <FormCard title="Resumen" description="Revisa el total antes de crear la factura.">
+            <div className="space-y-3 text-sm">
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Subtotal</span><strong className="text-slate-950 dark:text-slate-100">{money.format(totals.subtotal)}</strong></div>
+              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Impuesto {Math.round(taxRate * 10000) / 100}%</span><strong className="text-slate-950 dark:text-slate-100">{money.format(totals.tax)}</strong></div>
+              <FormField label="Descuento" type="number" min={0} value={discount} onChange={setDiscount} />
+              {loyaltySettings?.allowRedeem && (
+                <FormField
+                  label="Credito fidelidad"
+                  type="number"
+                  min={0}
+                  value={loyaltyRedeemAmount}
+                  onChange={setLoyaltyRedeemAmount}
+                  helper={`Maximo sin impuesto: ${money.format(Math.min(Number(loyaltyAccount?.moneyBalance || 0), totals.maxLoyaltyRedeem))}`}
+                />
+              )}
+              {totals.loyaltyDiscount > 0 && <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Fidelidad aplicada</span><strong className="text-slate-950 dark:text-slate-100">{money.format(totals.loyaltyDiscount)}</strong></div>}
+              <div className="border-t border-slate-200 pt-3 dark:border-slate-800">
+                <div className="flex justify-between text-base"><span className="text-slate-700 dark:text-slate-200">Total</span><strong className="text-xl text-slate-950 dark:text-slate-100">{money.format(totals.total)}</strong></div>
+              </div>
             </div>
-          </div>
-          <Button type="submit" loading={saving} className="mt-6 w-full" size="lg">Crear factura</Button>
+            <ActionBar>
+              <Button type="submit" loading={saving} className="w-full" size="lg">Crear factura</Button>
+            </ActionBar>
+          </FormCard>
+
+          <FormCard title="Control de stock">
+            <div className="space-y-3 text-sm">
+              {items.length === 0 ? (
+                <p className="text-slate-500 dark:text-slate-400">Agrega productos para validar disponibilidad.</p>
+              ) : items.map((item) => (
+                <div key={item.productId} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 dark:border-slate-800">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-slate-800 dark:text-slate-100">{item.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Disponible: {item.stock}</p>
+                  </div>
+                  <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${Number(item.quantity) > item.stock ? "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300" : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"}`}>
+                    {Number(item.quantity) > item.stock ? "Revisar" : "OK"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </FormCard>
         </aside>
       </section>
+      </FormPageLayout>
     </form>
   );
 }

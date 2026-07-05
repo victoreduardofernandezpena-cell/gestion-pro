@@ -1,9 +1,11 @@
-import { Edit2, Save, X } from "lucide-react";
+import { Edit2, RotateCcw, Save, Search, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import DataTable from "../components/DataTable";
+import FormField from "../components/FormField";
+import { ActionBar, FormCard, FormGrid, FormPageLayout } from "../components/FormLayout";
 import { createWarehouse, getWarehouses, updateWarehouse, updateWarehouseStatus } from "../services/warehouseService";
 import { getErrorMessage } from "../utils/errors";
 
@@ -13,13 +15,14 @@ export default function Warehouses() {
   const [warehouses, setWarehouses] = useState([]);
   const [form, setForm] = useState(emptyWarehouse);
   const [editingId, setEditingId] = useState(null);
+  const [search, setSearch] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  const load = async () => {
+  const load = async (query = search) => {
     setLoading(true);
     try {
-      setWarehouses(await getWarehouses());
+      setWarehouses(await getWarehouses(query));
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No se pudieron cargar almacenes"));
@@ -63,20 +66,38 @@ export default function Warehouses() {
   ];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-sm font-semibold uppercase tracking-wide text-accent">Inventario</p>
-        <h1 className="text-3xl font-semibold text-slate-950 dark:text-slate-100">Almacenes</h1>
-      </div>
+    <FormPageLayout
+      eyebrow="Inventario"
+      title="Almacenes"
+      subtitle="Administra las ubicaciones donde entran y salen productos del negocio."
+      actions={(
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
+            <Search size={18} className="text-slate-400" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && load(event.currentTarget.value)} placeholder="Buscar almacen" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-56" />
+          </div>
+          <Button type="button" variant="outline" icon={Search} onClick={() => load(search)}>Buscar</Button>
+        </div>
+      )}
+    >
       <AlertMessage>{error}</AlertMessage>
-      <form onSubmit={submit} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-5 shadow-soft md:grid-cols-[140px_1fr_1fr_auto_auto] dark:border-slate-800 dark:bg-slate-900">
-        <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} placeholder="Codigo" className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent dark:border-slate-700 dark:bg-slate-950" />
-        <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder="Nombre" className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent dark:border-slate-700 dark:bg-slate-950" />
-        <input value={form.address} onChange={(event) => setForm({ ...form, address: event.target.value })} placeholder="Direccion" className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-accent dark:border-slate-700 dark:bg-slate-950" />
-        <Button type="submit" icon={Save}>{editingId ? "Guardar" : "Crear"}</Button>
-        {editingId && <Button type="button" variant="outline" icon={X} onClick={() => { setEditingId(null); setForm(emptyWarehouse); }}>Cancelar</Button>}
-      </form>
-      {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando almacenes...</div> : <DataTable columns={columns} rows={warehouses} minWidth="760px" emptyTitle="Sin almacenes" />}
-    </div>
+      <FormCard title={editingId ? "Editar almacen" : "Nuevo almacen"} description="Usa codigos cortos y claros para seleccionar almacenes en movimientos.">
+        <form onSubmit={submit} className="space-y-5">
+          <FormGrid columns="xl:grid-cols-3">
+            <FormField label="Codigo" value={form.code} onChange={(value) => setForm({ ...form, code: value })} required />
+            <FormField label="Nombre" value={form.name} onChange={(value) => setForm({ ...form, name: value })} required />
+            <FormField label="Direccion" value={form.address} onChange={(value) => setForm({ ...form, address: value })} />
+          </FormGrid>
+          <ActionBar>
+            <Button type="submit" icon={Save}>{editingId ? "Guardar cambios" : "Crear almacen"}</Button>
+            <Button type="button" variant="outline" icon={RotateCcw} onClick={() => { setEditingId(null); setForm(emptyWarehouse); }}>Limpiar</Button>
+            {editingId && <Button type="button" variant="danger" icon={X} onClick={() => { setEditingId(null); setForm(emptyWarehouse); }}>Cancelar</Button>}
+          </ActionBar>
+        </form>
+      </FormCard>
+      <FormCard title="Listado de almacenes" description="Activa o inactiva ubicaciones sin borrar historial de movimientos.">
+        <DataTable columns={columns} rows={warehouses} loading={loading} minWidth="760px" emptyTitle="Sin almacenes" />
+      </FormCard>
+    </FormPageLayout>
   );
 }

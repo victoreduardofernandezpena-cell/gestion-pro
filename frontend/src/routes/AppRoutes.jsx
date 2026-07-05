@@ -99,7 +99,7 @@ export default function AppRoutes() {
             <Route path="inventario/almacenes" element={<Warehouses />} />
             <Route path="inventario/marcas" element={<Brands />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["admin", "almacen", "contabilidad"]} />}>
+          <Route element={<ProtectedRoute roles={["admin", "contabilidad"]} />}>
             <Route path="suppliers" element={<Suppliers />} />
             <Route path="purchases" element={<Purchases />} />
             <Route path="purchases/:id" element={<PurchaseDetail />} />
@@ -120,10 +120,10 @@ export default function AppRoutes() {
             <Route path="caja-chica/:id" element={<CashBoxDetail />} />
             <Route path="gastos" element={<Expenses />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["admin", "contabilidad", "ventas", "almacen"]} />}>
+          <Route element={<ProtectedRoute roles={["admin", "contabilidad"]} />}>
             <Route path="reportes" element={<Reports />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["admin", "ventas", "contabilidad"]} />}>
+          <Route element={<ProtectedRoute roles={["admin", "ventas"]} />}>
             <Route path="fidelizacion" element={<Loyalty />} />
             <Route path="fidelizacion/clientes" element={<LoyaltyClients />} />
             <Route path="fidelizacion/clientes/:id" element={<LoyaltyAccountDetail />} />
@@ -132,11 +132,11 @@ export default function AppRoutes() {
           <Route element={<ProtectedRoute roles={["admin"]} />}>
             <Route path="fidelizacion/configuracion" element={<LoyaltySettings />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["admin", "contabilidad", "ventas"]} />}>
+          <Route element={<ProtectedRoute roles={["admin", "contabilidad"]} />}>
             <Route path="reportes/ventas" element={<SalesReport />} />
             <Route path="reportes/cuentas-por-cobrar" element={<AccountsReceivableReport />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["admin", "contabilidad", "almacen"]} />}>
+          <Route element={<ProtectedRoute roles={["admin", "contabilidad"]} />}>
             <Route path="reportes/compras" element={<PurchasesReport />} />
             <Route path="reportes/inventario" element={<InventoryReport />} />
             <Route path="reportes/cuentas-por-pagar" element={<AccountsPayableReport />} />
@@ -172,7 +172,7 @@ export default function AppRoutes() {
             <Route path="sistema/estado" element={<SystemStatus />} />
             <Route path="sistema/backups" element={<Backups />} />
           </Route>
-          <Route element={<ProtectedRoute roles={["admin", "almacen"]} />}>
+          <Route element={<ProtectedRoute roles={["admin", "contabilidad"]} />}>
             <Route path="purchases/new" element={<CreatePurchase />} />
           </Route>
           <Route element={<ProtectedRoute roles={["admin", "ventas", "contabilidad"]} />}>

@@ -1,77 +1,140 @@
-# Manual Testing Checklist
+# Manual Testing Checklist - Beta Real
 
-## Login
+Usa este checklist en un entorno controlado con una base de datos de prueba o piloto. Marca cada punto por empresa y por rol cuando aplique.
+
+## Reglas generales de beta
+
+- [ ] No aparece ninguna pantalla en blanco al navegar por los modulos.
+- [ ] No aparece texto `undefined`, `NaN` ni mensajes tecnicos confusos.
+- [ ] Los errores muestran mensajes claros para el usuario.
+- [ ] Las tablas, formularios, modales y graficos cargan con pocos datos y con cero datos.
+- [ ] Las acciones sensibles quedan registradas en auditoria cuando aplica.
+
+## Login, sesion y logout
 
 - [ ] Login con credenciales validas.
-- [ ] Login con password incorrecto.
 - [ ] Login con email no registrado.
-- [ ] Bloqueo por rate limit tras varios intentos fallidos cuando `DISABLE_LOGIN_RATE_LIMIT=false`.
-- [ ] Logout limpia sesion local.
+- [ ] Login con password incorrecto.
+- [ ] Login con codigo de compania invalido.
+- [ ] Login con usuario inactivo muestra mensaje claro.
+- [ ] Login con compania inactiva muestra mensaje claro.
+- [ ] Rate limit de login funciona cuando `DISABLE_LOGIN_RATE_LIMIT=false`.
+- [ ] Logout limpia token, usuario y empresa locales.
+- [ ] Sesion expirada o token invalido limpia datos locales y redirige a login.
+- [ ] Usuario con cambio obligatorio de contrasena solo puede entrar al flujo de cambio.
 
 ## Multiempresa
 
-- [ ] Login usando codigo de compania valido.
-- [ ] Probar login del mismo admin en dos codigos de compania diferentes.
-- [ ] Confirmar que cada usuario solo ve companias asignadas.
-- [ ] Cambiar de compania si el flujo esta disponible.
-- [ ] Confirmar que clientes, productos, facturas, compras, reportes y configuracion no cruzan datos entre empresas.
-- [ ] Confirmar que roles por compania se respetan.
+- [ ] Cada login exige codigo de compania.
+- [ ] El mismo usuario puede entrar solo a empresas asignadas.
+- [ ] El rol se respeta por empresa.
+- [ ] Clientes, productos, facturas, compras, reportes, configuracion y fidelizacion no cruzan datos entre empresas.
+- [ ] Logos, RNC, numeracion y textos de documentos son propios de cada empresa.
 
-## Dashboard avanzado
+## Dashboard
 
-- [ ] Carga indicadores principales segun rol.
-- [ ] Cambiar filtro a Hoy, Semana, Mes, Trimestre, Ano y Personalizado.
-- [ ] Ver graficos principales sin `NaN` ni `undefined`.
-- [ ] Revisar alertas, actividad reciente y listas top.
-- [ ] Responde en vista movil.
-- [ ] No muestra errores con datos vacios.
-
-## Tema claro/oscuro
-
-- [ ] Cambiar entre tema claro y oscuro.
-- [ ] Confirmar persistencia del tema tras recargar.
-- [ ] Revisar tablas, formularios, tarjetas, graficos y modales en ambos temas.
-- [ ] Confirmar contraste legible en sidebar, navbar y botones.
+- [ ] Dashboard carga para admin.
+- [ ] Dashboard carga para ventas.
+- [ ] Dashboard carga para almacen.
+- [ ] Dashboard carga para contabilidad.
+- [ ] Los indicadores se filtran por rol.
+- [ ] Los filtros Hoy, Semana, Mes, Trimestre, Ano y Personalizado funcionan.
+- [ ] Graficos y listas no fallan con cero datos.
+- [ ] Alertas se muestran solo para datos permitidos por rol.
+- [ ] No se ven totales de modulos no autorizados.
 
 ## Clientes
 
-- [ ] Crear cliente con datos validos.
+- [ ] Ventas puede entrar a Clientes.
+- [ ] Admin puede entrar a Clientes.
+- [ ] Almacen y contabilidad ven Unauthorized si entran por URL directa.
+- [ ] Crear cliente con datos validos segun permisos disponibles.
+- [ ] Editar cliente existente segun permisos disponibles.
 - [ ] Validar email invalido.
-- [ ] Editar cliente existente.
-- [ ] Buscar o filtrar cliente.
-- [ ] Evitar duplicados de RNC si aplica.
+- [ ] Validar duplicados de RNC o identificacion si aplica.
+- [ ] Buscar o filtrar clientes.
 
 ## Productos
 
+- [ ] Ventas puede consultar productos.
+- [ ] Almacen puede gestionar productos.
+- [ ] Admin puede gestionar productos.
 - [ ] Crear producto con precio y costo validos.
 - [ ] Bloquear montos negativos.
+- [ ] Validar codigo duplicado con mensaje claro.
 - [ ] Editar producto.
-- [ ] Validar codigo duplicado.
-- [ ] Revisar responsive de tabla.
+- [ ] Eliminar o inactivar producto segun reglas actuales.
+- [ ] La tabla responde bien en movil.
 
 ## Inventario
 
-- [ ] Registrar entrada.
+- [ ] Almacen puede entrar a Inventario.
+- [ ] Ventas y contabilidad ven Unauthorized si entran por URL directa.
+- [ ] Registrar entrada de inventario.
 - [ ] Registrar salida con stock suficiente.
-- [ ] Bloquear stock negativo.
+- [ ] Bloquear salida con stock insuficiente.
+- [ ] Registrar ajuste con motivo.
 - [ ] Ver historial de movimientos.
+- [ ] Filtros por producto/almacen funcionan.
+
+## Almacenes
+
+- [ ] Almacen puede entrar a Almacenes.
+- [ ] Crear almacen.
+- [ ] Editar almacen.
+- [ ] Activar o desactivar almacen.
+- [ ] Validar duplicados con mensaje claro.
+
+## Marcas
+
+- [ ] Almacen puede entrar a Marcas.
+- [ ] Crear marca.
+- [ ] Editar marca.
+- [ ] Activar o desactivar marca.
+- [ ] Validar duplicados con mensaje claro.
 
 ## Facturacion
 
-- [ ] Crear factura y descontar inventario.
+- [ ] Ventas puede crear factura.
+- [ ] Contabilidad puede consultar facturas.
+- [ ] Admin puede consultar y gestionar facturas.
+- [ ] Crear factura con cliente y productos validos.
+- [ ] La factura descuenta inventario.
+- [ ] Validar stock insuficiente.
+- [ ] Cancelar factura y devolver inventario segun reglas actuales.
+- [ ] Ver detalle de factura.
+- [ ] Estado cambia correctamente entre pendiente, parcial, pagada y cancelada.
+
+## Pagos de facturas
+
+- [ ] Registrar pago simple en efectivo.
+- [ ] Registrar pago simple por banco/transferencia.
 - [ ] Registrar pago parcial.
 - [ ] Registrar pago completo.
-- [ ] Cancelar factura y devolver inventario.
-- [ ] Descargar o imprimir PDF.
-- [ ] Confirmar que el PDF usa datos reales de empresa y logo si existe.
+- [ ] Registrar pago multiple con varios metodos.
+- [ ] Bloquear monto cero o negativo.
+- [ ] Bloquear pago mayor al balance pendiente.
+- [ ] Actualizar balance, estado de factura, banco/caja y cuentas por cobrar.
+
+## PDF de factura
+
+- [ ] Descargar PDF desde detalle de factura.
+- [ ] PDF abre sin error.
+- [ ] PDF muestra empresa, RNC, direccion, telefono, cliente, productos, impuestos, total y balance.
+- [ ] PDF usa logo de la empresa cuando esta configurado.
+- [ ] PDF no muestra datos de otra empresa.
 
 ## Compras
 
-- [ ] Crear compra y aumentar inventario.
+- [ ] Contabilidad puede entrar a Compras.
+- [ ] Almacen y ventas ven Unauthorized si entran por URL directa.
+- [ ] Crear proveedor.
+- [ ] Crear compra con productos validos.
+- [ ] La compra aumenta inventario.
 - [ ] Registrar pago parcial.
 - [ ] Registrar pago completo.
-- [ ] Cancelar compra y descontar inventario.
-- [ ] Descargar o imprimir PDF.
+- [ ] Cancelar compra y revertir inventario segun reglas actuales.
+- [ ] Descargar PDF de compra si esta disponible.
 
 ## Cuentas por cobrar
 
@@ -79,9 +142,12 @@
 - [ ] Abrir factura desde acciones.
 - [ ] Registrar pago desde detalle.
 - [ ] Confirmar actualizacion de balance y estado.
+- [ ] Filtros muestran datos correctos.
 
 ## Cuentas por pagar
 
+- [ ] Contabilidad puede ver cuentas por pagar.
+- [ ] Almacen y ventas ven Unauthorized si entran por URL directa.
 - [ ] Ver compras pendientes y parciales.
 - [ ] Abrir compra desde acciones.
 - [ ] Registrar pago desde detalle.
@@ -89,141 +155,98 @@
 
 ## Banco
 
+- [ ] Contabilidad puede entrar a Banco.
 - [ ] Crear cuenta bancaria.
 - [ ] Registrar deposito.
 - [ ] Registrar retiro.
 - [ ] Registrar transferencia.
-- [ ] Validar balances.
+- [ ] Bloquear montos invalidos.
+- [ ] Validar balances despues de pagos, gastos y transferencias.
 
 ## Caja chica
 
+- [ ] Contabilidad puede entrar a Caja chica.
 - [ ] Crear caja.
 - [ ] Registrar entrada.
 - [ ] Registrar salida.
-- [ ] Validar balances.
+- [ ] Bloquear salida mayor al balance.
+- [ ] Validar balances despues de pagos y gastos.
 
 ## Gastos
 
+- [ ] Contabilidad puede entrar a Gastos.
 - [ ] Registrar gasto desde banco.
 - [ ] Registrar gasto desde caja chica.
 - [ ] Registrar gasto desde otra fuente.
 - [ ] Bloquear montos en cero o negativos.
-
-## Contabilidad
-
-- [ ] Crear cuenta contable.
-- [ ] Crear asiento balanceado.
-- [ ] Bloquear asiento con debito distinto a credito.
-- [ ] Ver detalle de asiento.
-- [ ] Revisar reportes contables.
+- [ ] Filtros por fecha/categoria funcionan.
 
 ## Reportes
 
-- [ ] Filtrar reporte de ventas.
-- [ ] Filtrar reporte de compras.
-- [ ] Filtrar reportes de inventario, gastos, banco, caja chica, cuentas por cobrar y cuentas por pagar.
-- [ ] Exportar CSV.
-- [ ] Exportar PDF.
-- [ ] Imprimir reporte.
+- [ ] Contabilidad puede entrar a Reportes.
+- [ ] Ventas y almacen ven Unauthorized si entran por URL directa.
+- [ ] Reporte de ventas carga y filtra.
+- [ ] Reporte de compras carga y filtra.
+- [ ] Reporte de inventario carga y filtra.
+- [ ] Reportes de cuentas por cobrar y por pagar cargan.
+- [ ] Reportes de banco, caja chica, gastos y contabilidad cargan.
+- [ ] Exportar CSV/Excel cuando aplique.
+- [ ] Exportar o imprimir PDF cuando aplique.
+- [ ] No aparecen totales `NaN` con cero datos.
 
-## Fidelizacion
+## Seguridad, usuarios y auditoria
 
-- [ ] Ver resumen de fidelizacion.
-- [ ] Crear o consultar cuenta de fidelidad de cliente.
-- [ ] Ver movimientos de puntos/credito.
-- [ ] Confirmar balances ganado, redimido y disponible.
-- [ ] Ver detalle de cuenta de fidelidad.
-- [ ] Validar configuracion de fidelizacion.
-- [ ] Confirmar que ventas autorizadas ven solo lo permitido.
-
-## Finanzas
-
-- [ ] Entrar a Finanzas como admin.
-- [ ] Entrar a Finanzas como contabilidad.
-- [ ] Confirmar que ventas y almacen no acceden.
-- [ ] Cambiar filtros de periodo.
-- [ ] Ver ventas, gastos, ganancia, efectivo disponible y posicion neta.
-- [ ] Ver cuentas por cobrar y cuentas por pagar.
-- [ ] Ver flujo de caja, rentabilidad por producto, top clientes y aging.
-- [ ] Ver alertas financieras y proyecciones.
-- [ ] Confirmar que no hay `NaN` ni `undefined`.
-
-## Impuestos
-
-- [ ] Entrar a Impuestos como admin.
-- [ ] Entrar a Impuestos como contabilidad.
-- [ ] Confirmar que ventas y almacen no acceden.
-- [ ] Cambiar filtros de periodo.
-- [ ] Ver ITBIS cobrado, ITBIS pagado, estimado a pagar o saldo a favor.
-- [ ] Ver facturas, compras y gastos del periodo.
-- [ ] Ver grafico mensual y alertas fiscales.
-- [ ] Usar boton Imprimir.
-- [ ] Abrir/Pagar facturas o compras parciales desde acciones.
-- [ ] Confirmar que no hay `NaN` ni `undefined`.
-
-## Recursos Humanos
-
-- [ ] Entrar a Recursos Humanos como admin.
-- [ ] Confirmar que contabilidad no accede a Recursos Humanos.
-- [ ] Confirmar que ventas y almacen no acceden.
-- [ ] Crear departamento.
-- [ ] Crear puesto.
-- [ ] Crear empleado.
-- [ ] Editar empleado.
-- [ ] Cambiar estado de empleado.
-- [ ] Registrar asistencia.
-- [ ] Editar asistencia.
-- [ ] Crear nomina.
-- [ ] Aprobar nomina.
-- [ ] Pagar nomina.
-- [ ] Registrar pago individual a empleado.
-- [ ] Ver detalle de empleado.
-- [ ] Ver reporte de nomina.
-- [ ] Ver reporte de asistencia.
-- [ ] Confirmar que no hay `NaN` ni `undefined`.
-
-## Seguridad
-
-- [ ] Crear usuario.
-- [ ] Cambiar rol.
-- [ ] Inactivar usuario.
-- [ ] Validar que usuario no admin no vea modulos admin.
-- [ ] Validar permisos de admin, ventas, almacen y contabilidad.
-- [ ] Revisar logs de auditoria.
+- [ ] Admin puede crear usuario.
+- [ ] Admin puede cambiar rol.
+- [ ] Admin puede inactivar usuario.
+- [ ] No se puede desactivar el ultimo admin activo de la compania.
+- [ ] Reset de contrasena obliga cambio al proximo login.
+- [ ] Admin ve auditoria.
+- [ ] Ventas, almacen y contabilidad no ven Seguridad ni Auditoria.
+- [ ] Acceso directo a rutas sin permiso muestra Unauthorized.
+- [ ] API devuelve 401 sin token, 403 sin permiso y 404 en rutas inexistentes.
 
 ## Configuracion
 
-- [ ] Editar datos de empresa.
-- [ ] Configurar impuestos.
-- [ ] Configurar numeracion.
-- [ ] Configurar categorias.
-- [ ] Configurar textos de documentos.
+- [ ] Admin puede editar datos de empresa.
+- [ ] Admin puede configurar impuestos.
+- [ ] Admin puede configurar numeracion.
+- [ ] Admin puede configurar categorias.
+- [ ] Admin puede configurar textos de documentos.
+- [ ] Cambios no afectan otra empresa.
 
-## Logo empresarial y uploads
+## Fidelizacion
 
-- [ ] Cargar logo empresarial si la configuracion lo permite.
-- [ ] Confirmar vista previa del logo.
-- [ ] Confirmar que facturas/PDFs usan el logo correcto.
-- [ ] Confirmar que el logo no se comparte entre empresas.
-- [ ] Confirmar que `backend/uploads` conserva archivos tras reiniciar la app.
+- [ ] Ventas puede entrar a Fidelizacion.
+- [ ] Contabilidad y almacen ven Unauthorized si entran por URL directa.
+- [ ] Ver resumen de fidelizacion.
+- [ ] Consultar cuenta de fidelidad de cliente.
+- [ ] Ver movimientos de puntos/credito.
+- [ ] Redimir credito segun reglas actuales.
+- [ ] Validar balances ganado, redimido y disponible.
+- [ ] Admin puede configurar fidelizacion.
 
-## Backups
+## Modo claro/oscuro
 
-- [ ] Entrar a Sistema como admin.
-- [ ] Ver estado del sistema.
-- [ ] Crear backup.
-- [ ] Descargar backup.
-- [ ] Eliminar backup con confirmacion.
-- [ ] Intentar restaurar y confirmar que exige `RESTAURAR`.
-- [ ] Confirmar que la restauracion automatica queda deshabilitada.
-- [ ] Probar restauracion manual en ambiente de prueba.
+- [ ] Cambiar entre tema claro y oscuro.
+- [ ] Confirmar persistencia tras recargar.
+- [ ] Revisar contraste en sidebar, navbar, tarjetas, tablas, formularios y modales.
+- [ ] Graficos se leen correctamente en ambos temas.
 
-## Piloto con cliente real
+## Responsive
 
-- [ ] Crear dos empresas limpias con codigos distintos.
-- [ ] Crear admin real y completar cambio obligatorio de contrasena.
-- [ ] Configurar logo, RNC, direccion, telefono y numeracion por empresa.
-- [ ] Crear cuentas bancarias y cajas reales antes de registrar cobros o pagos.
-- [ ] Registrar ventas, compras, gastos y pagos reales de bajo riesgo.
-- [ ] Revisar finanzas e impuestos por cada empresa.
-- [ ] Confirmar que el cliente no ve datos de otra empresa.
+- [ ] Login funciona en movil.
+- [ ] Sidebar movil abre y cierra.
+- [ ] Dashboard funciona en movil, tablet y escritorio.
+- [ ] Tablas hacen scroll horizontal sin romper layout.
+- [ ] Modales y formularios caben en pantallas pequenas.
+- [ ] Botones y textos no se montan unos sobre otros.
+
+## Cierre de beta
+
+- [ ] Ejecutar build frontend.
+- [ ] Verificar backend con health check.
+- [ ] Verificar estado de migraciones Prisma.
+- [ ] Revisar permisos finales por rol.
+- [ ] Crear backup antes de pruebas con datos reales.
+- [ ] Probar restauracion en ambiente aparte.

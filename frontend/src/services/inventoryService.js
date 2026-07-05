@@ -5,6 +5,11 @@ export const getInventory = async () => {
   return data;
 };
 
+export const getInventoryAlerts = async () => {
+  const { data } = await api.get("/inventory/alerts");
+  return data;
+};
+
 export const getInventoryMovements = async (filters = {}) => {
   const { data } = await api.get("/inventory/movements", { params: filters });
   return data;

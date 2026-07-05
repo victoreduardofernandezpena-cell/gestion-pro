@@ -204,7 +204,7 @@ export const login = async (req, res, next) => {
   try {
     const { email, password, companyCode } = req.body;
     const normalizedEmail = email?.trim().toLowerCase();
-    const normalizedCompanyCode = companyCode?.trim().toUpperCase();
+    const normalizedCompanyCode = normalizeCompanyCode(companyCode);
 
     if (!normalizedEmail || !password || !normalizedCompanyCode) {
       return res.status(400).json({ message: "Email, contrasena y codigo de compania son requeridos" });

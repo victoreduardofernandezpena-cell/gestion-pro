@@ -87,8 +87,25 @@ export const listInvoices = async (req, res, next) => {
         ...(id ? { id } : {}),
         ...(status ? { status } : {}),
         ...(startDate || endDate ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
-        ...(text ? { invoiceNumber: { contains: text, mode: "insensitive" } } : {}),
-        ...(client ? { client: { name: { contains: client, mode: "insensitive" } } } : {}),
+        ...(text
+          ? {
+            OR: [
+              { invoiceNumber: { contains: text, mode: "insensitive" } },
+              { notes: { contains: text, mode: "insensitive" } }
+            ]
+          }
+          : {}),
+        ...(client
+          ? {
+            client: {
+              OR: [
+                { name: { contains: client, mode: "insensitive" } },
+                { rnc: { contains: client, mode: "insensitive" } },
+                { phone: { contains: client, mode: "insensitive" } }
+              ]
+            }
+          }
+          : {}),
         ...(item
           ? {
             items: {
@@ -96,7 +113,10 @@ export const listInvoices = async (req, res, next) => {
                 product: {
                   OR: [
                     { name: { contains: item, mode: "insensitive" } },
-                    { code: { contains: item, mode: "insensitive" } }
+                    { code: { contains: item, mode: "insensitive" } },
+                    { sku: { contains: item, mode: "insensitive" } },
+                    { reference: { contains: item, mode: "insensitive" } },
+                    { barcode: { contains: item, mode: "insensitive" } }
                   ]
                 }
               }

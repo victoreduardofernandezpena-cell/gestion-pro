@@ -7,9 +7,10 @@ import Card from "../components/Card";
 import ConfirmDialog from "../components/ConfirmDialog";
 import DataTable from "../components/DataTable";
 import FormField from "../components/FormField";
+import InvoicePaymentBreakdownModal from "../components/invoices/InvoicePaymentBreakdownModal";
 import PageHeader from "../components/PageHeader";
 import StatusBadge from "../components/StatusBadge";
-import { cancelInvoice, createInvoicePayment, getInvoice } from "../services/invoiceService";
+import { cancelInvoice, createInvoicePayment, createInvoicePaymentBreakdown, getInvoice } from "../services/invoiceService";
 import { getBankAccounts } from "../services/bankService";
 import { getCashBoxes } from "../services/cashBoxService";
 import { downloadInvoicePdf } from "../services/reportService";
@@ -54,6 +55,7 @@ export default function InvoiceDetail() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [confirmCancel, setConfirmCancel] = useState(false);
+  const [showPaymentBreakdown, setShowPaymentBreakdown] = useState(false);
 
   const loadInvoice = async () => {
     setLoading(true);
@@ -118,6 +120,24 @@ export default function InvoiceDetail() {
     }
   };
 
+  const savePaymentBreakdown = async (payments) => {
+    setSaving(true);
+    setError("");
+    try {
+      const result = await createInvoicePaymentBreakdown(invoice.id, payments);
+      setInvoice(result.invoice);
+      setShowPaymentBreakdown(false);
+      toast.success(result.change > 0 ? `Pago registrado. Devuelta: ${money.format(Number(result.change))}` : "Pago registrado correctamente");
+      await loadInvoice();
+    } catch (err) {
+      const message = getErrorMessage(err, "No fue posible registrar el pago multiple");
+      setError(message);
+      toast.error(message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const downloadPdf = async () => {
     try {
       await downloadInvoicePdf(invoice.id, invoice.invoiceNumber);
@@ -167,6 +187,7 @@ export default function InvoiceDetail() {
           <Link to="/invoices" className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">Volver</Link>
           <Button variant="outline" onClick={downloadPdf}>Descargar PDF</Button>
           <Button variant="outline" onClick={() => window.print()}>Imprimir</Button>
+          {canPay && <Button variant="secondary" onClick={() => setShowPaymentBreakdown(true)}>Pago multiple</Button>}
           {canCancel && (
             <Button variant="danger" onClick={() => setConfirmCancel(true)} loading={saving}>Cancelar factura</Button>
           )}
@@ -250,6 +271,13 @@ export default function InvoiceDetail() {
           await cancel();
         }}
         loading={saving}
+      />
+      <InvoicePaymentBreakdownModal
+        invoice={showPaymentBreakdown ? invoice : null}
+        bankAccounts={bankAccounts}
+        cashBoxes={cashBoxes}
+        onClose={() => setShowPaymentBreakdown(false)}
+        onSave={savePaymentBreakdown}
       />
     </div>
   );

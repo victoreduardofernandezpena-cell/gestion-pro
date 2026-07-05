@@ -21,8 +21,8 @@ const router = Router();
 router.use(authenticate);
 
 const allReports = authorizeRoles("admin", "contabilidad");
-const salesAccess = authorizeRoles("admin", "contabilidad", "ventas");
-const warehouseAccess = authorizeRoles("admin", "contabilidad", "almacen");
+const salesAccess = authorizeRoles("admin", "contabilidad");
+const warehouseAccess = authorizeRoles("admin", "contabilidad");
 
 router.get("/summary", allReports, summaryReport);
 

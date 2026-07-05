@@ -2,6 +2,22 @@ import prisma from "../prisma.js";
 import { getLastBackupInfo, monthKey, resolveDashboardRange, roundMoney, sumBy } from "../utils/dashboardAnalytics.js";
 import { requireCompanyId } from "../utils/companyScope.js";
 
+const canSeeFinance = (role) => ["admin", "contabilidad"].includes(role);
+const canSeeSales = (role) => ["admin", "ventas", "contabilidad"].includes(role);
+const canSeeInventory = (role) => ["admin", "almacen"].includes(role);
+const canSeePurchases = (role) => ["admin", "contabilidad"].includes(role);
+const canSeeLoyalty = (role) => ["admin", "ventas"].includes(role);
+const canSeeAdmin = (role) => role === "admin";
+
+const filterMonthlyByRole = (rows, role) => rows.map((row) => ({
+  label: row.label,
+  sales: canSeeSales(role) ? row.sales : 0,
+  purchases: canSeePurchases(role) ? row.purchases : 0,
+  costs: canSeeSales(role) ? row.costs : 0,
+  expenses: canSeeFinance(role) ? row.expenses : 0,
+  profit: canSeeFinance(role) ? row.profit : 0
+}));
+
 export const getDashboardSummary = async (req, res, next) => {
   try {
     const companyId = requireCompanyId(req);
@@ -72,12 +88,12 @@ export const getDashboardSummary = async (req, res, next) => {
         lowStockProducts
       },
       chart: chart.length > 0 ? chart : [
-        { label: "Lun", venta: 82000, costo: 51000, ganancia: 31000 },
-        { label: "Mar", venta: 96000, costo: 60000, ganancia: 36000 },
-        { label: "Mie", venta: 88000, costo: 54000, ganancia: 34000 },
-        { label: "Jue", venta: 124000, costo: 71000, ganancia: 53000 },
-        { label: "Vie", venta: 137000, costo: 83000, ganancia: 54000 },
-        { label: "Sab", venta: 97800, costo: 63100, ganancia: 34700 }
+        { label: "Lun", venta: 0, costo: 0, ganancia: 0 },
+        { label: "Mar", venta: 0, costo: 0, ganancia: 0 },
+        { label: "Mie", venta: 0, costo: 0, ganancia: 0 },
+        { label: "Jue", venta: 0, costo: 0, ganancia: 0 },
+        { label: "Vie", venta: 0, costo: 0, ganancia: 0 },
+        { label: "Sab", venta: 0, costo: 0, ganancia: 0 }
       ]
     });
   } catch (error) {
@@ -89,6 +105,7 @@ export const getAdvancedDashboard = async (req, res, next) => {
   try {
     const { period, start, end } = resolveDashboardRange(req.query);
     const companyId = requireCompanyId(req);
+    const role = req.user?.role;
     const range = { gte: start, lte: end };
     const inRange = { createdAt: range };
 
@@ -213,66 +230,67 @@ export const getAdvancedDashboard = async (req, res, next) => {
     const loyaltyEarned = sumBy(recentLoyaltyTransactions.filter((item) => item.type === "EARNED"), (item) => item.amount);
     const loyaltyRedeemed = sumBy(recentLoyaltyTransactions.filter((item) => item.type === "REDEEMED"), (item) => item.amount);
     const backupOld = !lastBackup || Date.now() - new Date(lastBackup.createdAt).getTime() > 7 * 24 * 60 * 60 * 1000;
+    const visibleMonthlyData = filterMonthlyByRole(monthlyData, role);
 
     res.json({
       period,
       range: { startDate: start, endDate: end },
       summary: {
-        totalSales: roundMoney(totalSales),
-        totalPurchases: roundMoney(totalPurchases),
-        grossProfit: roundMoney(grossProfit),
-        totalExpenses: roundMoney(totalExpenses),
-        netProfit: roundMoney(netProfit),
-        accountsReceivable: roundMoney(accountsReceivable),
-        accountsPayable: roundMoney(accountsPayable),
-        bankBalance: roundMoney(bankBalance),
-        cashBoxBalance: roundMoney(cashBoxBalance),
-        loyaltyPendingBalance: roundMoney(loyaltyPendingBalance),
+        totalSales: canSeeSales(role) ? roundMoney(totalSales) : 0,
+        totalPurchases: canSeePurchases(role) ? roundMoney(totalPurchases) : 0,
+        grossProfit: canSeeFinance(role) ? roundMoney(grossProfit) : 0,
+        totalExpenses: canSeeFinance(role) ? roundMoney(totalExpenses) : 0,
+        netProfit: canSeeFinance(role) ? roundMoney(netProfit) : 0,
+        accountsReceivable: canSeeSales(role) ? roundMoney(accountsReceivable) : 0,
+        accountsPayable: canSeePurchases(role) ? roundMoney(accountsPayable) : 0,
+        bankBalance: canSeeFinance(role) ? roundMoney(bankBalance) : 0,
+        cashBoxBalance: canSeeFinance(role) ? roundMoney(cashBoxBalance) : 0,
+        loyaltyPendingBalance: canSeeLoyalty(role) ? roundMoney(loyaltyPendingBalance) : 0,
         totalClients: clientsCount,
         totalProducts: productsCount,
-        lowStockProducts: lowStock.length,
-        pendingInvoices: receivableInvoices.length,
-        pendingPurchases: payablePurchases.length,
-        activeLoyaltyClients: activeLoyaltyAccounts.length,
-        activeUsers
+        lowStockProducts: canSeeInventory(role) ? lowStock.length : 0,
+        pendingInvoices: canSeeSales(role) ? receivableInvoices.length : 0,
+        pendingPurchases: canSeePurchases(role) ? payablePurchases.length : 0,
+        activeLoyaltyClients: canSeeLoyalty(role) ? activeLoyaltyAccounts.length : 0,
+        activeUsers: canSeeAdmin(role) ? activeUsers : 0
       },
       charts: {
-        salesVsPurchasesByMonth: monthlyData,
-        profitByMonth: monthlyData,
-        expensesByCategory,
-        topProducts,
-        topClients,
+        salesVsPurchasesByMonth: visibleMonthlyData,
+        profitByMonth: visibleMonthlyData,
+        expensesByCategory: canSeeFinance(role) ? expensesByCategory : [],
+        topProducts: canSeeSales(role) ? topProducts : [],
+        topClients: canSeeSales(role) ? topClients : [],
         receivableVsPayable: [
-          { name: "Por cobrar", value: roundMoney(accountsReceivable) },
-          { name: "Por pagar", value: roundMoney(accountsPayable) }
+          { name: "Por cobrar", value: canSeeSales(role) ? roundMoney(accountsReceivable) : 0 },
+          { name: "Por pagar", value: canSeePurchases(role) ? roundMoney(accountsPayable) : 0 }
         ],
-        cashFlow: [
+        cashFlow: canSeeFinance(role) ? [
           { name: "Banco", value: roundMoney(bankBalance) },
           { name: "Caja chica", value: roundMoney(cashBoxBalance) }
-        ],
-        loyaltyEarnedVsRedeemed: [
+        ] : [],
+        loyaltyEarnedVsRedeemed: canSeeLoyalty(role) ? [
           { name: "Ganado", value: roundMoney(sumBy(activeLoyaltyAccounts, (account) => account.totalEarned) || loyaltyEarned) },
           { name: "Usado", value: roundMoney(sumBy(activeLoyaltyAccounts, (account) => account.totalRedeemed) || loyaltyRedeemed) }
-        ]
+        ] : []
       },
       recentActivity: {
-        invoices: recentInvoices,
-        purchases: recentPurchases,
-        expenses: recentExpenses,
-        inventoryMovements: recentInventoryMovements,
-        receivedPayments: recentPayments,
-        supplierPayments: recentPurchasePayments,
-        loyaltyTransactions: recentLoyaltyTransactions,
-        auditLogs: recentAuditLogs
+        invoices: canSeeSales(role) ? recentInvoices : [],
+        purchases: canSeePurchases(role) ? recentPurchases : [],
+        expenses: canSeeFinance(role) ? recentExpenses : [],
+        inventoryMovements: canSeeInventory(role) ? recentInventoryMovements : [],
+        receivedPayments: canSeeSales(role) ? recentPayments : [],
+        supplierPayments: canSeePurchases(role) ? recentPurchasePayments : [],
+        loyaltyTransactions: canSeeLoyalty(role) ? recentLoyaltyTransactions : [],
+        auditLogs: canSeeAdmin(role) ? recentAuditLogs : []
       },
       alerts: {
-        lowStock: lowStock.slice(0, 8),
-        pendingInvoices: receivableInvoices.slice(0, 8),
-        pendingPurchases: payablePurchases.slice(0, 8),
-        highReceivables: receivableInvoices.filter((invoice) => Number(invoice.balance) >= 10000).slice(0, 8),
-        highExpenses: expenses.filter((expense) => Number(expense.amount) >= 10000).slice(0, 8),
-        backupWarning: backupOld ? { message: lastBackup ? "El ultimo backup tiene mas de 7 dias" : "No hay backups registrados", lastBackup } : null,
-        loyaltyBalances: activeLoyaltyAccounts.filter((account) => Number(account.moneyBalance) >= 1000).slice(0, 8)
+        lowStock: canSeeInventory(role) ? lowStock.slice(0, 8) : [],
+        pendingInvoices: canSeeSales(role) ? receivableInvoices.slice(0, 8) : [],
+        pendingPurchases: canSeePurchases(role) ? payablePurchases.slice(0, 8) : [],
+        highReceivables: canSeeFinance(role) ? receivableInvoices.filter((invoice) => Number(invoice.balance) >= 10000).slice(0, 8) : [],
+        highExpenses: canSeeFinance(role) ? expenses.filter((expense) => Number(expense.amount) >= 10000).slice(0, 8) : [],
+        backupWarning: canSeeAdmin(role) && backupOld ? { message: lastBackup ? "El ultimo backup tiene mas de 7 dias" : "No hay backups registrados", lastBackup } : null,
+        loyaltyBalances: canSeeLoyalty(role) ? activeLoyaltyAccounts.filter((account) => Number(account.moneyBalance) >= 1000).slice(0, 8) : []
       }
     });
   } catch (error) {

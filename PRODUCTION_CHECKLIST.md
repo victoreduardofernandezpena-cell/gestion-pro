@@ -1,90 +1,109 @@
-# Production Checklist
+# Production Checklist - Gestion Pro
 
-## Entorno
+Checklist para preparar un beta real o despliegue controlado. No uses datos reales sin backup y sin haber probado restauracion.
+
+## Entorno y variables
 
 - [ ] Configurar `NODE_ENV=production`.
-- [ ] Cambiar `JWT_SECRET` por un secreto fuerte.
-- [ ] Cambiar credenciales de base de datos.
-- [ ] Revisar variables de entorno backend y frontend.
-- [ ] Configurar `VITE_API_URL` para la API real.
-- [ ] Configurar `FRONTEND_URL` y CORS para el dominio real.
-- [ ] Configurar HTTPS.
-- [ ] Configurar dominio.
-- [ ] Configurar logs del servidor.
-- [ ] Confirmar que no se suben archivos `.env`.
+- [ ] Cambiar `JWT_SECRET` por un secreto largo, unico y no versionado.
+- [ ] Revisar `DATABASE_URL` apuntando a la base real correcta.
+- [ ] Configurar `DIRECT_URL` si el proveedor de base de datos lo requiere.
+- [ ] Configurar `VITE_API_URL` con la URL publica de la API.
+- [ ] Configurar `FRONTEND_URL` con el dominio real del frontend.
+- [ ] Configurar `FRONTEND_URLS` si hay mas de un origen permitido.
+- [ ] Mantener `DISABLE_LOGIN_RATE_LIMIT=false`.
+- [ ] Mantener `DEBUG_ERRORS=false`.
+- [ ] Confirmar que `.env` no se sube a GitHub.
+- [ ] Confirmar que `.gitignore` cubre `.env`, `.env.*`, backups, uploads, logs, `node_modules`, `dist` y `build`.
 
 ## Base de datos y Prisma
 
-- [ ] Ejecutar migraciones Prisma.
+- [ ] Configurar base de datos real.
+- [ ] Crear backup antes de probar con datos reales.
+- [ ] Ejecutar migraciones pendientes.
 - [ ] Ejecutar `npx prisma generate`.
-- [ ] Ejecutar seed solo si aplica.
-- [ ] Crear backup antes del despliegue.
-- [ ] Verificar backups automaticos o programados de base de datos.
-- [ ] Configurar `BACKUP_DIR` en almacenamiento persistente o externo al codigo.
-- [ ] Configurar `BACKUP_RETENTION_DAYS`.
-- [ ] Probar restauracion manual en un ambiente de prueba.
-- [ ] Documentar procedimiento de restauracion.
-
-## Archivos persistentes
-
-- [ ] Verificar respaldo externo de `backend/backups`.
-- [ ] Verificar respaldo externo de `backend/uploads`.
-- [ ] Confirmar que logos empresariales y archivos cargados persisten tras reiniciar el servidor.
-- [ ] Confirmar que no se suben backups, uploads privados ni logs al repositorio.
-- [ ] Confirmar que `.gitignore` cubre `.env`, `backend/backups`, `backend/uploads`, logs, `node_modules`, `dist` y `build`.
-
-## Seguridad
-
+- [ ] Revisar `npx prisma migrate status`.
+- [ ] Confirmar que no hay migraciones pendientes antes de entregar.
+- [ ] Ejecutar seed solo si aplica al entorno.
+- [ ] Desactivar o eliminar usuarios demo.
 - [ ] Crear usuario admin real.
-- [ ] Confirmar que no se cargaron usuarios demo.
-- [ ] Verificar permisos por rol: admin, ventas, almacen y contabilidad.
-- [ ] Confirmar que solo existen usuarios reales del cliente.
-- [ ] Probar login y expiracion de sesion.
-- [ ] Verificar rate limit de login.
-- [ ] Revisar auditoria de acciones sensibles.
-- [ ] Verificar que no haya credenciales reales versionadas.
+- [ ] Completar cambio de contrasena del admin real.
+- [ ] Probar restauracion de backup en un entorno aparte.
 
-## Multiempresa
+## Seguridad y permisos
 
-- [ ] Verificar separacion por empresa si el despliegue usa multiempresa.
-- [ ] Confirmar que cada usuario solo accede a companias asignadas.
-- [ ] Confirmar que datos de clientes, productos, facturas, compras, reportes, configuracion, finanzas, impuestos y RRHH no cruzan empresas.
-- [ ] Verificar que logos y datos fiscales/documentos son por empresa.
+- [ ] Probar login, logout, sesion expirada y token invalido.
+- [ ] Probar 401 sin token.
+- [ ] Probar 403 con usuario sin permiso.
+- [ ] Probar 404 en ruta inexistente.
+- [ ] Probar mensaje controlado en error 500.
+- [ ] Confirmar que no se exponen passwords, tokens ni secretos en respuestas.
+- [ ] Confirmar que usuarios no admin no ven Seguridad, Auditoria, Configuracion ni Sistema.
+- [ ] Confirmar permisos por rol:
+- [ ] Admin ve todo.
+- [ ] Ventas ve clientes, productos de consulta, facturas, pagos y fidelizacion.
+- [ ] Almacen ve productos, inventario, almacenes y marcas.
+- [ ] Contabilidad ve facturas, pagos, compras, banco, caja, gastos y reportes.
+- [ ] Confirmar rutas protegidas desde URL directa.
+- [ ] Revisar auditoria de login y acciones sensibles.
 
-## Modulos operativos
+## CORS, HTTPS y dominio
 
-- [ ] Probar clientes, productos e inventario.
-- [ ] Probar facturas, pagos y cuentas por cobrar.
-- [ ] Probar compras, pagos y cuentas por pagar.
-- [ ] Probar banco, caja chica y gastos.
-- [ ] Probar asientos y reportes contables.
-- [ ] Probar reportes, CSV, PDFs e impresion.
+- [ ] CORS permite solo dominios reales y localhost de desarrollo cuando aplique.
+- [ ] Configurar HTTPS.
+- [ ] Configurar dominio o subdominio final.
+- [ ] Configurar proxy o plataforma para servir API y frontend.
+- [ ] Verificar que cookies, headers y `Authorization` funcionen detras del proxy.
+
+## Backups y archivos persistentes
+
+- [ ] Configurar `BACKUP_DIR` fuera del codigo o en almacenamiento persistente.
+- [ ] Configurar `BACKUP_RETENTION_DAYS`.
+- [ ] Confirmar que `backend/backups` no se versiona.
+- [ ] Confirmar que `backend/uploads` no se versiona.
+- [ ] Respaldar base de datos.
+- [ ] Respaldar logos y archivos cargados.
+- [ ] Probar descarga de backup desde la interfaz admin.
+- [ ] Documentar procedimiento de restauracion manual.
+
+## Pruebas funcionales obligatorias
+
+- [ ] Probar dashboard con cero datos y con datos reales.
+- [ ] Probar clientes.
+- [ ] Probar productos.
+- [ ] Probar inventario, almacenes y marcas.
+- [ ] Probar facturacion.
+- [ ] Probar pagos simples y multiples.
+- [ ] Probar PDF de factura.
+- [ ] Probar compras y cuentas por pagar.
+- [ ] Probar cuentas por cobrar.
+- [ ] Probar banco.
+- [ ] Probar caja chica.
+- [ ] Probar gastos.
+- [ ] Probar reportes y exportaciones.
+- [ ] Probar usuarios, permisos y auditoria.
+- [ ] Probar configuracion de empresa/documentos/numeracion.
 - [ ] Probar fidelizacion.
-- [ ] Probar finanzas.
-- [ ] Probar impuestos.
-- [ ] Probar recursos humanos.
-- [ ] Probar sistema de backups desde interfaz.
+- [ ] Probar modo claro/oscuro.
+- [ ] Probar responsive en movil, tablet y escritorio.
 
-## Documentos, PDFs y reportes
+## Build y verificaciones
 
-- [ ] Verificar que PDFs usan datos reales de empresa.
-- [ ] Verificar RNC, direccion, telefono, email y logo empresarial en documentos.
-- [ ] Verificar numeracion de facturas, compras y asientos.
-- [ ] Verificar exportaciones CSV/PDF.
-- [ ] Verificar impresion desde reportes y modulos fiscales.
+- [ ] Ejecutar build frontend.
+- [ ] Verificar que la API responda en `/api/health`.
+- [ ] Ejecutar verificacion backend disponible.
+- [ ] Ejecutar audit de dependencias si aplica.
+- [ ] Revisar consola del navegador sin errores bloqueantes.
+- [ ] Revisar logs del servidor sin errores repetidos.
+- [ ] Confirmar que no quedan pantallas en blanco.
+- [ ] Confirmar que no aparecen `undefined` ni `NaN`.
 
-## Frontend y UX
+## Deploy
 
-- [ ] Ejecutar `npm run build` en frontend.
-- [ ] Revisar responsive en escritorio, tablet y movil.
-- [ ] Probar tema claro/oscuro.
-- [ ] Probar navegacion por sidebar y rutas protegidas.
-- [ ] Confirmar que no hay `NaN`, `undefined` ni errores visuales en tablas/graficos.
-
-## Despliegue
-
-- [ ] Configurar proceso de backend con reinicio automatico.
-- [ ] Configurar servidor web/proxy inverso si aplica.
-- [ ] Configurar almacenamiento persistente para uploads y backups.
-- [ ] Hacer backup final antes del despliegue.
-- [ ] Verificar monitoreo basico de disponibilidad y logs.
+- [ ] Documentar comandos de deploy backend.
+- [ ] Documentar comandos de deploy frontend.
+- [ ] Documentar variables necesarias en la plataforma.
+- [ ] Configurar logs del servidor o plataforma.
+- [ ] Configurar reinicio automatico del backend.
+- [ ] No hacer deploy destructivo sobre base real.
+- [ ] Hacer backup final antes de abrir beta a usuarios reales.

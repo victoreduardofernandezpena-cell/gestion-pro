@@ -1,43 +1,48 @@
 # Gestion Pro
 
-Aplicacion web tipo ERP para gestion administrativa de negocios, tiendas y operaciones multiempresa. Incluye ventas, compras, inventario, finanzas, impuestos, recursos humanos, reportes, seguridad, configuracion, backups y paneles ejecutivos.
+Gestion Pro es un ERP administrativo multiempresa para operar ventas, compras, inventario, finanzas, reportes, usuarios, auditoria, configuracion y fidelizacion desde una aplicacion web.
+
+Estado actual: beta real controlada. El sistema esta preparado para pruebas con datos reales de bajo riesgo despues de configurar entorno, permisos, backups y variables de produccion.
 
 ## Stack
 
-- Frontend: React, Vite, TailwindCSS, Axios, React Router, Recharts, Lucide.
-- Backend: Node.js, Express, Prisma, PostgreSQL, JWT.
-- Reportes/documentos: CSV compatible con Excel, PDF e impresion.
-- Seguridad: rutas protegidas, roles, auditoria, Helmet y rate limit en login.
+- Frontend: React, Vite, TailwindCSS, React Router, Axios, Recharts, Lucide, Framer Motion.
+- Backend: Node.js, Express, Prisma, PostgreSQL, JWT, Helmet, CORS y rate limit de login.
+- Documentos: PDF de factura/compra y exportaciones de reportes cuando aplica.
+- Persistencia: PostgreSQL, `backend/uploads` para logos/archivos y `backend/backups` para respaldos locales.
 
-## Estado del proyecto
+## Modulos incluidos
 
-El ERP tiene completas las fases 1 a 10 e incluye modulos adicionales implementados para uso operativo real:
-
-- Login, dashboard avanzado, layout, rutas protegidas y navegacion por rol.
-- Multiempresa con codigo de compania y separacion de datos por `companyId`.
-- Clientes, productos, inventario y movimientos.
-- Facturacion, pagos y cuentas por cobrar.
-- Proveedores, compras, pagos y cuentas por pagar.
+- Login, logout, sesion protegida y multiempresa por codigo de compania.
+- Dashboard con indicadores segun rol.
+- Clientes.
+- Productos.
+- Inventario, almacenes, marcas y movimientos.
+- Facturacion, pagos simples/multiples y cuentas por cobrar.
+- Compras, pagos y cuentas por pagar.
 - Banco, caja chica y gastos.
-- Contabilidad basica, catalogo de cuentas, asientos y reportes contables.
-- Reportes con filtros, exportacion CSV/PDF e impresion.
-- Fidelizacion de clientes, cuentas de fidelidad, movimientos y configuracion.
-- Finanzas: resumen ejecutivo, flujo de caja, rentabilidad, deudas, alertas y proyecciones.
-- Impuestos: resumen fiscal, ITBIS cobrado/pagado, ventas, compras, gastos, mensual y alertas.
-- Recursos Humanos: empleados, departamentos, puestos, asistencia, nomina simple, pagos y reportes.
-- Seguridad: usuarios, permisos por rol, perfil y auditoria.
-- Configuracion: empresa, impuestos, numeracion, categorias y documentos.
-- Carga de logo empresarial para documentos cuando la configuracion lo permite.
-- Sistema: estado de aplicacion y backups.
-- Tema claro/oscuro.
-- Animaciones suaves y pulido visual/UX.
+- Reportes operativos y contables.
+- Usuarios, roles, auditoria y cambio obligatorio de contrasena.
+- Configuracion de empresa, impuestos, numeracion, categorias y documentos.
+- Fidelizacion de clientes.
+- Modo claro/oscuro y responsive.
+- Sistema, estado y backups para admin.
 
-## Requisitos previos
+## Roles beta
+
+- Admin: todo.
+- Ventas: clientes, productos en consulta, facturas, pagos y fidelizacion.
+- Almacen: productos, inventario, almacenes y marcas.
+- Contabilidad: facturas, pagos, compras, banco, caja, gastos y reportes.
+
+Los usuarios sin permiso deben ver Unauthorized en frontend y recibir 403 desde la API.
+
+## Requisitos
 
 - Node.js 18 o superior.
 - PostgreSQL local o remoto.
-- `pg_dump` disponible en PATH para crear backups desde la app o desde `npm run backup`.
-- `psql` disponible para restauracion manual de backups.
+- `pg_dump` para crear backups desde la app o con script.
+- `psql` para restauracion manual de backups.
 
 ## Instalacion backend
 
@@ -51,7 +56,7 @@ npx prisma db seed
 npm run dev
 ```
 
-La API corre por defecto en `http://localhost:4000`.
+La API corre por defecto en `http://localhost:4000` y expone salud en `http://localhost:4000/api/health`.
 
 ## Instalacion frontend
 
@@ -66,77 +71,74 @@ El frontend corre por defecto en `http://localhost:5173`.
 
 ## Variables de entorno
 
-Backend:
+Backend (`backend/.env`):
 
 ```env
 PORT=4000
 NODE_ENV=development
 DATABASE_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE"
+DIRECT_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE"
 JWT_SECRET="CHANGE_THIS_SECRET"
 JWT_EXPIRES_IN="8h"
+DEBUG_ERRORS=false
 LOGIN_RATE_LIMIT_WINDOW_MS=900000
 LOGIN_RATE_LIMIT_MAX=10
 DISABLE_LOGIN_RATE_LIMIT=false
 FRONTEND_URL="http://localhost:5173"
+FRONTEND_URLS="http://localhost:5173,http://127.0.0.1:5173"
+PG_DUMP_PATH="C:/Program Files/PostgreSQL/18/bin/pg_dump.exe"
+BACKUP_DIR="./backups"
+BACKUP_RETENTION_DAYS=30
 ```
 
-Frontend:
+Frontend (`frontend/.env`):
 
 ```env
 VITE_API_URL="http://localhost:4000/api"
 ```
 
-No uses credenciales reales en archivos versionados.
-
-## Comandos utiles
-
-Backend:
-
-```bash
-npm run dev
-npm start
-npm run prisma:migrate
-npm run prisma:seed
-npm run prisma:studio
-npm run backup
-```
-
-Frontend:
-
-```bash
-npm run dev
-npm run build
-npm run preview
-```
+No guardes credenciales reales en archivos versionados.
 
 ## Prisma
 
-Migraciones:
+Migraciones de desarrollo:
 
 ```bash
 cd backend
-npm run prisma:migrate
+npx prisma migrate dev
 ```
 
-Seed:
+Migraciones para entorno ya desplegado:
 
 ```bash
 cd backend
-npm run prisma:seed
+npx prisma migrate deploy
 ```
 
-Si se agregan modelos nuevos o se actualiza Prisma Client:
+Estado de migraciones:
+
+```bash
+cd backend
+npx prisma migrate status
+```
+
+Generar Prisma Client:
 
 ```bash
 cd backend
 npx prisma generate
 ```
 
-## Seed inicial
+Seed:
 
-El seed actual no carga clientes, productos, facturas ni usuarios demo. Crea empresas limpias y asigna un usuario admin inicial.
+```bash
+cd backend
+npx prisma db seed
+```
 
-Variables utiles para un piloto con dos negocios:
+## Seed
+
+El seed crea empresas limpias y un admin inicial. Ajusta estos valores solo en tu `.env` local o de entorno:
 
 ```env
 SEED_ADMIN_EMAIL="admin@gestionpro.local"
@@ -148,73 +150,96 @@ SEED_COMPANY_2_NAME="Segundo Negocio"
 SEED_COMPANY_2_CODE="NEGOCIO2"
 ```
 
-El primer login obliga a cambiar la contrasena.
+Antes de beta real, crea un admin real, cambia la contrasena inicial y desactiva usuarios demo.
 
-## Backups y archivos persistentes
+## Correr local
 
-Desde la interfaz:
+Backend:
 
-- Entra como admin.
-- Abre `Sistema > Backups`.
-- Usa `Crear backup`, `Descargar` o `Eliminar`.
+```bash
+cd backend
+npm run dev
+```
 
-Desde CLI:
+Frontend:
+
+```bash
+cd frontend
+npm run dev
+```
+
+## Como probar
+
+1. Levanta backend y frontend.
+2. Entra con un usuario admin y codigo de compania.
+3. Crea o revisa usuarios para ventas, almacen y contabilidad.
+4. Ejecuta `MANUAL_TESTING_CHECKLIST.md`.
+5. Revisa permisos con URL directa para rutas no permitidas.
+6. Revisa que no aparezcan pantallas en blanco, `undefined`, `NaN` ni errores genericos.
+
+## Build
+
+Frontend:
+
+```bash
+cd frontend
+npm run build
+```
+
+Backend:
+
+```bash
+cd backend
+npm run build
+```
+
+El build backend genera Prisma Client. La API se inicia con:
+
+```bash
+cd backend
+npm start
+```
+
+## Backups
+
+Crear backup desde CLI:
 
 ```bash
 cd backend
 npm run backup
 ```
 
-Los archivos se guardan en `backend/backups` o en la ruta definida por `BACKUP_DIR`, con formato `backup_YYYY-MM-DD_HH-mm-ss.sql`. Esa carpeta debe estar ignorada por Git.
-
-En produccion deben respaldarse de forma externa y periodica:
-
-- Base de datos PostgreSQL.
-- `backend/backups` o el directorio definido por `BACKUP_DIR`.
-- `backend/uploads`, incluyendo logos empresariales y cualquier archivo privado cargado por usuarios.
-
-## Restauracion manual
-
-La restauracion automatica esta deshabilitada por seguridad. Para restaurar manualmente:
+Restauracion manual:
 
 ```bash
 psql "postgresql://USER:PASSWORD@localhost:5432/DATABASE" < backend/backups/backup_YYYY-MM-DD_HH-mm-ss.sql
 ```
 
-Haz un backup de la base actual antes de restaurar. Ejecuta la restauracion en un entorno controlado antes de usarla en produccion.
+Haz siempre un backup antes de restaurar y prueba la restauracion en un entorno separado.
 
-## Estructura
+## Seguridad
 
-```text
-backend/
-  prisma/
-  src/controllers/
-  src/middleware/
-  src/routes/
-  src/utils/
-  backups/
-  uploads/
-frontend/
-  src/components/
-  src/context/
-  src/layouts/
-  src/pages/
-  src/routes/
-  src/services/
+- Cambia `JWT_SECRET` antes de cualquier prueba real.
+- Configura CORS con `FRONTEND_URL` y `FRONTEND_URLS`.
+- Usa HTTPS en produccion.
+- Mantiene `DISABLE_LOGIN_RATE_LIMIT=false`.
+- Mantiene `DEBUG_ERRORS=false`.
+- No subas `.env`, backups, uploads privados, logs, `node_modules`, `dist` ni `build`.
+- Revisa permisos por rol antes de abrir beta.
+- Verifica separacion por empresa si el entorno usa multiempresa.
+- Respaldar base de datos, uploads y backups.
+
+## GitHub y deploy
+
+Antes de subir:
+
+```bash
+git status
 ```
 
-## Notas de seguridad
+Confirma que no aparezcan `.env`, backups ni uploads. Para deploy, configura variables de entorno en la plataforma y ejecuta migraciones antes de abrir el acceso a usuarios reales.
 
-- Configura `JWT_SECRET` en `.env`.
-- Mantén `DISABLE_LOGIN_RATE_LIMIT=false` en produccion. Usalo en `true` solo durante pruebas controladas.
-- No subas `.env`, backups, uploads privados, logs ni `node_modules`.
-- Configura `FRONTEND_URL` para CORS segun el dominio real.
-- Usa HTTPS en produccion.
-- Usa un admin real y cambia la contrasena inicial del seed en el primer acceso.
-- Revisa roles y permisos antes de entregar el sistema.
-- Verifica separacion por empresa si se usa multiempresa.
-- Respalda base de datos, `BACKUP_DIR` y `backend/uploads`.
+## Checklist
 
-## Checklist antes de produccion
-
-Ver `PRODUCTION_CHECKLIST.md`.
+- Pruebas manuales: `MANUAL_TESTING_CHECKLIST.md`
+- Produccion/beta real: `PRODUCTION_CHECKLIST.md`
