@@ -70,10 +70,43 @@ export const listInvoices = async (req, res, next) => {
       return res.status(400).json({ message: "Estado de factura invalido" });
     }
 
+    const id = req.query.id ? Number(req.query.id) : null;
+    const text = req.query.text?.trim();
+    const client = req.query.client?.trim();
+    const item = req.query.item?.trim();
+    const startDate = req.query.startDate ? new Date(`${req.query.startDate}T00:00:00.000Z`) : null;
+    const endDate = req.query.endDate ? new Date(`${req.query.endDate}T23:59:59.999Z`) : null;
+
+    if (req.query.id && (!Number.isInteger(id) || id <= 0)) {
+      return res.status(400).json({ message: "ID de factura invalido" });
+    }
+
     const invoices = await prisma.invoice.findMany({
-      where: { companyId: requireCompanyId(req), ...(status ? { status } : {}) },
+      where: {
+        companyId: requireCompanyId(req),
+        ...(id ? { id } : {}),
+        ...(status ? { status } : {}),
+        ...(startDate || endDate ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
+        ...(text ? { invoiceNumber: { contains: text, mode: "insensitive" } } : {}),
+        ...(client ? { client: { name: { contains: client, mode: "insensitive" } } } : {}),
+        ...(item
+          ? {
+            items: {
+              some: {
+                product: {
+                  OR: [
+                    { name: { contains: item, mode: "insensitive" } },
+                    { code: { contains: item, mode: "insensitive" } }
+                  ]
+                }
+              }
+            }
+          }
+          : {})
+      },
       include: {
-        client: { select: { id: true, name: true, rnc: true } }
+        client: { select: { id: true, name: true, rnc: true } },
+        items: { include: { product: { select: { id: true, code: true, name: true } } } }
       },
       orderBy: { createdAt: "desc" }
     });

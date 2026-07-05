@@ -1,7 +1,8 @@
 import api from "./api";
 
-export const getInvoices = async (status = "") => {
-  const { data } = await api.get("/invoices", { params: status ? { status } : {} });
+export const getInvoices = async (filters = "") => {
+  const params = typeof filters === "string" ? (filters ? { status: filters } : {}) : filters;
+  const { data } = await api.get("/invoices", { params });
   return data;
 };
 
