@@ -265,6 +265,16 @@ model Product {
   code               String
   name               String
   description        String?
+  itemType           String?
+  status             String?
+  barcode            String?
+  sku                String?
+  category           String?
+  subcategory        String?
+  family             String?
+  brand              String?
+  unit               String?
+  imageName          String?
   cost               Decimal             @db.Decimal(12, 2)
   price              Decimal             @db.Decimal(12, 2)
   stock              Int                 @default(0)

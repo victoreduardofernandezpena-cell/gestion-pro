@@ -5,25 +5,35 @@ import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import DataTable from "../components/DataTable";
 import { getErrorMessage } from "../utils/errors";
+import { getCategories } from "../services/settingsService";
 
-const emptyProduct = { code: "", name: "", description: "", cost: 0, price: 0, stock: 0, minimumStock: 0 };
-const emptyMeta = {
+const emptyProduct = {
+  code: "",
+  name: "",
+  description: "",
+  itemType: "",
+  status: "Activo",
   barcode: "",
   sku: "",
-  type: "",
-  status: "",
   category: "",
   subcategory: "",
   family: "",
   brand: "",
   unit: "",
   imageName: "",
+  cost: 0,
+  price: 0,
+  stock: 0,
+  minimumStock: 0
+};
+const emptyMeta = {
   imagePreview: ""
 };
 const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 
 export default function Products() {
   const [products, setProducts] = useState([]);
+  const [productTypes, setProductTypes] = useState([]);
   const [form, setForm] = useState(emptyProduct);
   const [meta, setMeta] = useState(emptyMeta);
   const [editingId, setEditingId] = useState(null);
@@ -46,11 +56,18 @@ export default function Products() {
 
   useEffect(() => {
     loadProducts("");
+    getCategories("PRODUCT")
+      .then((rows) => setProductTypes(rows.filter((row) => row.isActive)))
+      .catch(() => setProductTypes([]));
   }, []);
 
   const submit = async (event) => {
     event.preventDefault();
     setError("");
+    if (!form.itemType) {
+      setError("Debe seleccionar un tipo de item. El admin puede crearlo en Configuracion > Categorias con tipo Producto.");
+      return;
+    }
     setSaving(true);
     try {
       if (editingId) await updateProduct(editingId, form);
@@ -68,7 +85,14 @@ export default function Products() {
 
   const edit = (product) => {
     setEditingId(product.id);
-    setForm({ ...product, cost: Number(product.cost), price: Number(product.price) });
+    setForm({
+      ...emptyProduct,
+      ...product,
+      cost: Number(product.cost),
+      price: Number(product.price),
+      stock: Number(product.stock),
+      minimumStock: Number(product.minimumStock)
+    });
     setMeta(emptyMeta);
   };
 
@@ -83,7 +107,7 @@ export default function Products() {
   };
 
   const updateMeta = (field, value) => {
-    setMeta((current) => ({ ...current, [field]: value }));
+    setForm((current) => ({ ...current, [field]: value }));
   };
 
   const cancelEdit = () => {
@@ -95,10 +119,12 @@ export default function Products() {
   const handleImage = (event) => {
     const file = event.target.files?.[0];
     if (!file) {
-      setMeta((current) => ({ ...current, imageName: "", imagePreview: "" }));
+      setForm((current) => ({ ...current, imageName: "" }));
+      setMeta(emptyMeta);
       return;
     }
-    setMeta((current) => ({ ...current, imageName: file.name, imagePreview: URL.createObjectURL(file) }));
+    setForm((current) => ({ ...current, imageName: file.name }));
+    setMeta((current) => ({ ...current, imagePreview: URL.createObjectURL(file) }));
   };
 
   const columns = [
@@ -161,15 +187,15 @@ export default function Products() {
                 <span className="hidden md:block" />
                 <span className="self-center text-xs font-medium text-slate-700">Tipo de item</span>
                 <div className="flex flex-wrap items-center gap-4">
-                  <select value={meta.type} onChange={(event) => updateMeta("type", event.target.value)} className="min-h-9 w-48 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.itemType} onChange={(event) => setForm({ ...form, itemType: event.target.value })} required className="min-h-9 w-48 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
-                    <option value="PARTES DE MOTORES">PARTES DE MOTORES</option>
-                    <option value="PRODUCTO">PRODUCTO</option>
-                    <option value="SERVICIO">SERVICIO</option>
+                    {productTypes.map((type) => (
+                      <option key={type.id} value={type.name}>{type.name}</option>
+                    ))}
                   </select>
                   <span className="text-red-600">*</span>
                   <span className="text-xs font-medium text-slate-700">Estatus</span>
-                  <select value={meta.status} onChange={(event) => updateMeta("status", event.target.value)} className="min-h-9 w-28 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="min-h-9 w-28 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
                     <option value="Activo">Activo</option>
                     <option value="Inactivo">Inactivo</option>
@@ -181,12 +207,12 @@ export default function Products() {
                 <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Codificacion</h2>
                 <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_28px_80px_150px_40px_120px]">
                   <span className="self-center text-xs font-medium text-slate-700">Codigo de barra</span>
-                  <input value={meta.barcode} onChange={(event) => updateMeta("barcode", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
+                  <input value={form.barcode} onChange={(event) => updateMeta("barcode", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-center text-xl text-slate-300">+</span>
                   <span className="self-center text-xs font-medium text-slate-700">Referencia</span>
                   <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-xs font-medium text-slate-700">SKU</span>
-                  <input value={meta.sku} onChange={(event) => updateMeta("sku", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
+                  <input value={form.sku} onChange={(event) => updateMeta("sku", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                 </div>
               </div>
 
@@ -194,34 +220,34 @@ export default function Products() {
                 <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Categorizacion</h2>
                 <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_80px_90px_60px_90px]">
                   <span className="self-center text-xs font-medium text-slate-700">Categoria</span>
-                  <select value={meta.category} onChange={(event) => updateMeta("category", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.category} onChange={(event) => updateMeta("category", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
                     <option value="PRODUCTO">PRODUCTO</option>
                     <option value="SERVICIO">SERVICIO</option>
                     <option value="REPUESTO">REPUESTO</option>
                   </select>
                   <span className="self-center text-xs font-medium text-slate-700">SubCategoria</span>
-                  <select value={meta.subcategory} onChange={(event) => updateMeta("subcategory", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.subcategory} onChange={(event) => updateMeta("subcategory", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
                     <option value="General">General</option>
                     <option value="Motor">Motor</option>
                     <option value="Accesorio">Accesorio</option>
                   </select>
                   <span className="self-center text-xs font-medium text-slate-700">Familia</span>
-                  <select value={meta.family} onChange={(event) => updateMeta("family", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.family} onChange={(event) => updateMeta("family", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
                     <option value="Principal">Principal</option>
                     <option value="Secundaria">Secundaria</option>
                   </select>
 
                   <span className="self-center text-xs font-medium text-slate-700">Marca</span>
-                  <select value={meta.brand} onChange={(event) => updateMeta("brand", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.brand} onChange={(event) => updateMeta("brand", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
                     <option value="CLARO ERP">CLARO ERP</option>
                     <option value="Generica">Generica</option>
                   </select>
                   <span className="self-center text-xs font-medium text-slate-700">Item Unidad</span>
-                  <select value={meta.unit} onChange={(event) => updateMeta("unit", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                  <select value={form.unit} onChange={(event) => updateMeta("unit", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
                     <option value=""></option>
                     <option value="Unidad">Unidad</option>
                     <option value="Caja">Caja</option>

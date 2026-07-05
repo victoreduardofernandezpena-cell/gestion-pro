@@ -1,0 +1,10 @@
+ALTER TABLE "Product" ADD COLUMN "itemType" TEXT;
+ALTER TABLE "Product" ADD COLUMN "status" TEXT;
+ALTER TABLE "Product" ADD COLUMN "barcode" TEXT;
+ALTER TABLE "Product" ADD COLUMN "sku" TEXT;
+ALTER TABLE "Product" ADD COLUMN "category" TEXT;
+ALTER TABLE "Product" ADD COLUMN "subcategory" TEXT;
+ALTER TABLE "Product" ADD COLUMN "family" TEXT;
+ALTER TABLE "Product" ADD COLUMN "brand" TEXT;
+ALTER TABLE "Product" ADD COLUMN "unit" TEXT;
+ALTER TABLE "Product" ADD COLUMN "imageName" TEXT;
