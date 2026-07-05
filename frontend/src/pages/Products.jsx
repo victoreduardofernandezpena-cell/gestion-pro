@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Camera, Edit2, Plus, Search, Trash2 } from "lucide-react";
+import { Camera, Edit2, Save, Search, Trash2, X } from "lucide-react";
 import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
@@ -7,11 +7,25 @@ import DataTable from "../components/DataTable";
 import { getErrorMessage } from "../utils/errors";
 
 const emptyProduct = { code: "", name: "", description: "", cost: 0, price: 0, stock: 0, minimumStock: 0 };
+const emptyMeta = {
+  barcode: "",
+  sku: "",
+  type: "",
+  status: "",
+  category: "",
+  subcategory: "",
+  family: "",
+  brand: "",
+  unit: "",
+  imageName: "",
+  imagePreview: ""
+};
 const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 
 export default function Products() {
   const [products, setProducts] = useState([]);
   const [form, setForm] = useState(emptyProduct);
+  const [meta, setMeta] = useState(emptyMeta);
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
@@ -42,6 +56,7 @@ export default function Products() {
       if (editingId) await updateProduct(editingId, form);
       else await createProduct(form);
       setForm(emptyProduct);
+      setMeta(emptyMeta);
       setEditingId(null);
       await loadProducts();
     } catch (err) {
@@ -54,6 +69,7 @@ export default function Products() {
   const edit = (product) => {
     setEditingId(product.id);
     setForm({ ...product, cost: Number(product.cost), price: Number(product.price) });
+    setMeta(emptyMeta);
   };
 
   const remove = async (id) => {
@@ -64,6 +80,25 @@ export default function Products() {
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible eliminar el producto"));
     }
+  };
+
+  const updateMeta = (field, value) => {
+    setMeta((current) => ({ ...current, [field]: value }));
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setForm(emptyProduct);
+    setMeta(emptyMeta);
+  };
+
+  const handleImage = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      setMeta((current) => ({ ...current, imageName: "", imagePreview: "" }));
+      return;
+    }
+    setMeta((current) => ({ ...current, imageName: file.name, imagePreview: URL.createObjectURL(file) }));
   };
 
   const columns = [
@@ -126,13 +161,18 @@ export default function Products() {
                 <span className="hidden md:block" />
                 <span className="self-center text-xs font-medium text-slate-700">Tipo de item</span>
                 <div className="flex flex-wrap items-center gap-4">
-                  <select disabled className="min-h-9 w-48 rounded border border-cyan-200 bg-slate-50 px-2 text-sm text-slate-700">
-                    <option>PARTES DE MOTORES</option>
+                  <select value={meta.type} onChange={(event) => updateMeta("type", event.target.value)} className="min-h-9 w-48 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="PARTES DE MOTORES">PARTES DE MOTORES</option>
+                    <option value="PRODUCTO">PRODUCTO</option>
+                    <option value="SERVICIO">SERVICIO</option>
                   </select>
                   <span className="text-red-600">*</span>
                   <span className="text-xs font-medium text-slate-700">Estatus</span>
-                  <select disabled className="min-h-9 w-28 rounded border border-cyan-200 bg-slate-50 px-2 text-sm text-slate-700">
-                    <option>Activo</option>
+                  <select value={meta.status} onChange={(event) => updateMeta("status", event.target.value)} className="min-h-9 w-28 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="Activo">Activo</option>
+                    <option value="Inactivo">Inactivo</option>
                   </select>
                 </div>
               </div>
@@ -141,12 +181,12 @@ export default function Products() {
                 <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Codificacion</h2>
                 <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_28px_80px_150px_40px_120px]">
                   <span className="self-center text-xs font-medium text-slate-700">Codigo de barra</span>
-                  <input disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm" />
+                  <input value={meta.barcode} onChange={(event) => updateMeta("barcode", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-center text-xl text-slate-300">+</span>
                   <span className="self-center text-xs font-medium text-slate-700">Referencia</span>
                   <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                   <span className="self-center text-xs font-medium text-slate-700">SKU</span>
-                  <input disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm" />
+                  <input value={meta.sku} onChange={(event) => updateMeta("sku", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
                 </div>
               </div>
 
@@ -154,21 +194,38 @@ export default function Products() {
                 <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Categorizacion</h2>
                 <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_80px_90px_60px_90px]">
                   <span className="self-center text-xs font-medium text-slate-700">Categoria</span>
-                  <select disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm text-slate-700">
-                    <option>PRODUCTO</option>
+                  <select value={meta.category} onChange={(event) => updateMeta("category", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="PRODUCTO">PRODUCTO</option>
+                    <option value="SERVICIO">SERVICIO</option>
+                    <option value="REPUESTO">REPUESTO</option>
                   </select>
                   <span className="self-center text-xs font-medium text-slate-700">SubCategoria</span>
-                  <select disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm" />
+                  <select value={meta.subcategory} onChange={(event) => updateMeta("subcategory", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="General">General</option>
+                    <option value="Motor">Motor</option>
+                    <option value="Accesorio">Accesorio</option>
+                  </select>
                   <span className="self-center text-xs font-medium text-slate-700">Familia</span>
-                  <select disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm" />
+                  <select value={meta.family} onChange={(event) => updateMeta("family", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="Principal">Principal</option>
+                    <option value="Secundaria">Secundaria</option>
+                  </select>
 
                   <span className="self-center text-xs font-medium text-slate-700">Marca</span>
-                  <select disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm text-slate-700">
-                    <option>CLARO ERP</option>
+                  <select value={meta.brand} onChange={(event) => updateMeta("brand", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="CLARO ERP">CLARO ERP</option>
+                    <option value="Generica">Generica</option>
                   </select>
                   <span className="self-center text-xs font-medium text-slate-700">Item Unidad</span>
-                  <select disabled className="min-h-9 rounded border border-cyan-200 bg-slate-50 px-2 text-sm text-slate-700">
-                    <option>Unidad</option>
+                  <select value={meta.unit} onChange={(event) => updateMeta("unit", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
+                    <option value=""></option>
+                    <option value="Unidad">Unidad</option>
+                    <option value="Caja">Caja</option>
+                    <option value="Paquete">Paquete</option>
                   </select>
                 </div>
               </div>
@@ -188,24 +245,26 @@ export default function Products() {
 
             <aside className="flex flex-col items-center justify-start gap-4 pt-10">
               <div className="flex h-28 w-32 flex-col items-center justify-center text-center text-xs font-semibold text-slate-500">
-                <Camera size={50} className="mb-1 text-slate-400" />
-                Imagen<br />No Disponible
+                {meta.imagePreview ? (
+                  <img src={meta.imagePreview} alt="" className="h-full w-full rounded object-cover" />
+                ) : (
+                  <>
+                    <Camera size={50} className="mb-1 text-slate-400" />
+                    Imagen<br />No Disponible
+                  </>
+                )}
               </div>
               <div className="grid w-full grid-cols-[60px_1fr] items-center gap-3">
                 <span className="text-xs font-medium text-slate-700">Imagen</span>
-                <input type="file" disabled className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-slate-700" />
+                <input type="file" accept="image/*" onChange={handleImage} className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-slate-700" />
               </div>
             </aside>
           </div>
 
           <div className="mt-6 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
-            <Button type="submit" loading={saving} icon={Plus}>
-              {editingId ? "Guardar cambios" : "Guardar item"}
-            </Button>
+            <Button type="submit" loading={saving} icon={Save} aria-label={editingId ? "Guardar cambios" : "Guardar item"} title={editingId ? "Guardar cambios" : "Guardar item"} className="h-10 w-10 px-0" />
             {editingId && (
-              <Button type="button" variant="outline" onClick={() => { setEditingId(null); setForm(emptyProduct); }}>
-                Cancelar
-              </Button>
+              <Button type="button" variant="outline" icon={X} aria-label="Cancelar" title="Cancelar" onClick={cancelEdit} className="h-10 w-10 px-0" />
             )}
           </div>
         </form>
