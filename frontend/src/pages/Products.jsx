@@ -1,11 +1,13 @@
+import { Camera, Edit2, RotateCcw, Save, Search, Trash2, X } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Camera, Edit2, Save, Search, Trash2, X } from "lucide-react";
-import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
-import { getBrands } from "../services/brandService";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import DataTable from "../components/DataTable";
+import FormField from "../components/FormField";
+import { ActionBar, FormCard, FormGrid, FormPageLayout, FormSection, ModernCheckbox } from "../components/FormLayout";
 import { getErrorMessage } from "../utils/errors";
+import { getBrands } from "../services/brandService";
+import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
 import { getCategories } from "../services/settingsService";
 
 const emptyProduct = {
@@ -33,9 +35,7 @@ const emptyProduct = {
   stock: 0,
   minimumStock: 0
 };
-const emptyMeta = {
-  imagePreview: ""
-};
+
 const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 
 export default function Products() {
@@ -43,7 +43,7 @@ export default function Products() {
   const [productTypes, setProductTypes] = useState([]);
   const [brands, setBrands] = useState([]);
   const [form, setForm] = useState(emptyProduct);
-  const [meta, setMeta] = useState(emptyMeta);
+  const [imagePreview, setImagePreview] = useState("");
   const [editingId, setEditingId] = useState(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
@@ -83,9 +83,7 @@ export default function Products() {
     try {
       if (editingId) await updateProduct(editingId, form);
       else await createProduct(form);
-      setForm(emptyProduct);
-      setMeta(emptyMeta);
-      setEditingId(null);
+      resetForm();
       await loadProducts();
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible guardar el producto"));
@@ -94,17 +92,25 @@ export default function Products() {
     }
   };
 
+  const resetForm = () => {
+    setForm(emptyProduct);
+    setImagePreview("");
+    setEditingId(null);
+  };
+
   const edit = (product) => {
     setEditingId(product.id);
     setForm({
       ...emptyProduct,
       ...product,
-      cost: Number(product.cost),
-      price: Number(product.price),
-      stock: Number(product.stock),
-      minimumStock: Number(product.minimumStock)
+      brandId: product.brandId || "",
+      cost: Number(product.cost || 0),
+      price: Number(product.price || 0),
+      stock: Number(product.stock || 0),
+      minimumStock: Number(product.minimumStock || 0)
     });
-    setMeta(emptyMeta);
+    setImagePreview("");
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const remove = async (id) => {
@@ -117,211 +123,169 @@ export default function Products() {
     }
   };
 
-  const updateMeta = (field, value) => {
+  const updateField = (field, value) => {
     setForm((current) => ({ ...current, [field]: value }));
   };
 
-  const cancelEdit = () => {
-    setEditingId(null);
-    setForm(emptyProduct);
-    setMeta(emptyMeta);
+  const handleBrand = (value) => {
+    const brand = brands.find((item) => String(item.id) === String(value));
+    setForm((current) => ({ ...current, brandId: value, brand: brand?.name || "" }));
   };
 
   const handleImage = (event) => {
     const file = event.target.files?.[0];
     if (!file) {
       setForm((current) => ({ ...current, imageName: "" }));
-      setMeta(emptyMeta);
+      setImagePreview("");
       return;
     }
     setForm((current) => ({ ...current, imageName: file.name }));
-    setMeta((current) => ({ ...current, imagePreview: URL.createObjectURL(file) }));
+    setImagePreview(URL.createObjectURL(file));
   };
 
   const columns = [
     { key: "code", header: "Codigo", className: "font-medium" },
     { key: "name", header: "Producto" },
+    { key: "reference", header: "Referencia", render: (product) => product.reference || "-" },
+    { key: "brand", header: "Marca", render: (product) => product.brandRef?.name || product.brand || "-" },
     { key: "stock", header: "Stock" },
-    { key: "cost", header: "Costo", render: (product) => money.format(product.cost) },
-    { key: "price", header: "Precio", render: (product) => money.format(product.price) },
+    { key: "cost", header: "Costo", render: (product) => money.format(Number(product.cost || 0)) },
+    { key: "price", header: "Precio", render: (product) => money.format(Number(product.price || 0)) },
     {
       key: "actions",
       header: "Acciones",
       align: "right",
       render: (product) => (
         <div className="flex justify-end gap-2">
-          <button onClick={() => edit(product)} className="rounded-lg border border-slate-200 p-2 text-slate-600" aria-label="Editar"><Edit2 size={16} /></button>
-          <button onClick={() => remove(product.id)} className="rounded-lg border border-rose-200 p-2 text-rose-600" aria-label="Eliminar"><Trash2 size={16} /></button>
+          <button onClick={() => edit(product)} className="rounded-lg border border-slate-200 p-2 text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800" aria-label="Editar"><Edit2 size={16} /></button>
+          <button onClick={() => remove(product.id)} className="rounded-lg border border-rose-200 p-2 text-rose-600 hover:bg-rose-50 dark:border-rose-900/60 dark:hover:bg-rose-950/40" aria-label="Eliminar"><Trash2 size={16} /></button>
         </div>
       )
     }
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-accent">Catalogo</p>
-          <h1 className="text-3xl font-semibold text-slate-950">Productos</h1>
-        </div>
-        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2">
+    <FormPageLayout
+      eyebrow="Catalogo"
+      title="Productos"
+      subtitle="Crea y administra los productos del inventario con codificacion, categorizacion y reglas de control."
+      actions={(
+        <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
           <Search size={18} className="text-slate-400" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProducts(event.currentTarget.value)} placeholder="Nombre o codigo" className="w-64 outline-none" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProducts(event.currentTarget.value)} placeholder="Buscar nombre, codigo, SKU" className="w-64 bg-transparent text-sm outline-none placeholder:text-slate-400" />
         </div>
-      </div>
-
+      )}
+    >
       <AlertMessage>{error}</AlertMessage>
 
-      <section className="space-y-6">
-        <form onSubmit={submit} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
-          <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_280px]">
-            <div className="space-y-5">
-              <div className="grid gap-x-6 gap-y-3 md:grid-cols-[90px_minmax(0,260px)_1fr]">
-                <span className="self-center text-xs font-medium text-slate-700">Id</span>
-                <span className="self-center text-sm font-semibold text-slate-900">{editingId || "Nuevo"}</span>
-
-                <span className="hidden md:block" />
-                <span className="self-center text-xs font-medium text-slate-700">Nombre</span>
-                <div className="flex items-center gap-2">
-                  <input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required className="min-h-9 w-full rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                  <span className="text-red-600">*</span>
-                </div>
-
-                <span className="hidden md:block" />
-                <span className="self-start pt-2 text-xs font-medium text-slate-700">Descripcion</span>
-                <textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} className="min-h-24 w-full rounded border border-cyan-200 bg-white px-2 py-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-
-                <span className="hidden md:block" />
-                <span className="self-center text-xs font-medium text-slate-700">Precio</span>
-                <input type="number" min={0} value={form.price} onChange={(event) => setForm({ ...form, price: event.target.value })} required className="min-h-9 w-36 rounded border border-cyan-200 bg-white px-2 text-right text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-
-                <span className="hidden md:block" />
-                <span className="self-center text-xs font-medium text-slate-700">Tipo de item</span>
-                <div className="flex flex-wrap items-center gap-4">
-                  <select value={form.itemType} onChange={(event) => setForm({ ...form, itemType: event.target.value })} required className="min-h-9 w-48 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
-                    {productTypes.map((type) => (
-                      <option key={type.id} value={type.name}>{type.name}</option>
-                    ))}
-                  </select>
-                  <span className="text-red-600">*</span>
-                  <span className="text-xs font-medium text-slate-700">Estatus</span>
-                  <select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value })} className="min-h-9 w-28 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
+      <form onSubmit={submit} className="space-y-6">
+        <FormCard
+          title={editingId ? "Editar producto" : "Crear producto"}
+          description="Completa la informacion principal. Los campos marcados con asterisco son obligatorios."
+          actions={editingId && <Button type="button" variant="outline" icon={X} onClick={resetForm}>Cancelar edicion</Button>}
+        >
+          <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_260px]">
+            <div className="space-y-7">
+              <FormSection title="Informacion general" description="Datos visibles para ventas, inventario y reportes.">
+                <FormGrid columns="xl:grid-cols-4">
+                  <FormField label="Nombre" value={form.name} onChange={(value) => updateField("name", value)} required className="sm:col-span-2" />
+                  <FormField label="Precio" type="number" min={0} value={form.price} onChange={(value) => updateField("price", value)} required />
+                  <FormField label="Estatus" as="select" value={form.status} onChange={(value) => updateField("status", value)}>
                     <option value="Activo">Activo</option>
                     <option value="Inactivo">Inactivo</option>
-                  </select>
-                </div>
-              </div>
+                  </FormField>
+                  <FormField label="Descripcion" as="textarea" value={form.description} onChange={(value) => updateField("description", value)} className="sm:col-span-2 xl:col-span-3" />
+                  <FormField label="Tipo de item" as="select" value={form.itemType} onChange={(value) => updateField("itemType", value)} required>
+                    <option value="">Seleccionar</option>
+                    {productTypes.map((type) => <option key={type.id} value={type.name}>{type.name}</option>)}
+                  </FormField>
+                </FormGrid>
+              </FormSection>
 
-              <div>
-                <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Codificacion</h2>
-                <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_28px_80px_150px_40px_120px]">
-                  <span className="self-center text-xs font-medium text-slate-700">Codigo de barra</span>
-                  <input value={form.barcode} onChange={(event) => updateMeta("barcode", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                  <span className="self-center text-center text-xl text-slate-300">+</span>
-                  <span className="self-center text-xs font-medium text-slate-700">Referencia</span>
-                  <input value={form.reference} onChange={(event) => updateMeta("reference", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                  <span className="self-center text-xs font-medium text-slate-700">SKU</span>
-                  <input value={form.sku} onChange={(event) => updateMeta("sku", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                  <span className="self-center text-xs font-medium text-slate-700">Codigo</span>
-                  <input value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} required className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                </div>
-              </div>
+              <FormSection title="Codificacion" description="Identificadores para busqueda rapida, importaciones y lectura en caja.">
+                <FormGrid columns="xl:grid-cols-4">
+                  <FormField label="Codigo de barra" value={form.barcode} onChange={(value) => updateField("barcode", value)} />
+                  <FormField label="Referencia" value={form.reference} onChange={(value) => updateField("reference", value)} />
+                  <FormField label="SKU" value={form.sku} onChange={(value) => updateField("sku", value)} />
+                  <FormField label="Codigo" value={form.code} onChange={(value) => updateField("code", value)} required />
+                </FormGrid>
+              </FormSection>
 
-              <div>
-                <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Categorizacion</h2>
-                <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_80px_90px_60px_90px]">
-                  <span className="self-center text-xs font-medium text-slate-700">Categoria</span>
-                  <select value={form.category} onChange={(event) => updateMeta("category", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
-                    <option value="PRODUCTO">PRODUCTO</option>
-                    <option value="SERVICIO">SERVICIO</option>
-                    <option value="REPUESTO">REPUESTO</option>
-                  </select>
-                  <span className="self-center text-xs font-medium text-slate-700">SubCategoria</span>
-                  <select value={form.subcategory} onChange={(event) => updateMeta("subcategory", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
+              <FormSection title="Categorizacion" description="Organiza el catalogo para busquedas, reportes y filtros.">
+                <FormGrid columns="xl:grid-cols-5">
+                  <FormField label="Categoria" as="select" value={form.category} onChange={(value) => updateField("category", value)}>
+                    <option value="">Seleccionar</option>
+                    <option value="PRODUCTO">Producto</option>
+                    <option value="SERVICIO">Servicio</option>
+                    <option value="REPUESTO">Repuesto</option>
+                  </FormField>
+                  <FormField label="Subcategoria" as="select" value={form.subcategory} onChange={(value) => updateField("subcategory", value)}>
+                    <option value="">Seleccionar</option>
                     <option value="General">General</option>
                     <option value="Motor">Motor</option>
                     <option value="Accesorio">Accesorio</option>
-                  </select>
-                  <span className="self-center text-xs font-medium text-slate-700">Familia</span>
-                  <select value={form.family} onChange={(event) => updateMeta("family", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
+                  </FormField>
+                  <FormField label="Familia" as="select" value={form.family} onChange={(value) => updateField("family", value)}>
+                    <option value="">Seleccionar</option>
                     <option value="Principal">Principal</option>
                     <option value="Secundaria">Secundaria</option>
-                  </select>
-
-                  <span className="self-center text-xs font-medium text-slate-700">Marca</span>
-                  <select value={form.brandId || ""} onChange={(event) => {
-                    const brand = brands.find((item) => String(item.id) === event.target.value);
-                    setForm({ ...form, brandId: event.target.value, brand: brand?.name || "" });
-                  }} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
+                  </FormField>
+                  <FormField label="Marca" as="select" value={form.brandId || ""} onChange={handleBrand}>
+                    <option value="">Seleccionar</option>
                     {brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
-                  </select>
-                  <span className="self-center text-xs font-medium text-slate-700">Item Unidad</span>
-                  <select value={form.unit} onChange={(event) => updateMeta("unit", event.target.value)} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-sm text-slate-700 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100">
-                    <option value=""></option>
+                  </FormField>
+                  <FormField label="Unidad del item" as="select" value={form.unit} onChange={(value) => updateField("unit", value)}>
+                    <option value="">Seleccionar</option>
                     <option value="Unidad">Unidad</option>
                     <option value="Caja">Caja</option>
                     <option value="Paquete">Paquete</option>
-                  </select>
-                </div>
-              </div>
+                  </FormField>
+                </FormGrid>
+              </FormSection>
 
-              <div>
-                <h2 className="border-b border-slate-300 pb-3 text-sm font-bold text-blue-800">Inventario</h2>
-                <div className="mt-4 grid gap-x-5 gap-y-3 md:grid-cols-[90px_130px_90px_130px]">
-                  <span className="self-center text-xs font-medium text-slate-700">Costo</span>
-                  <input type="number" min={0} value={form.cost} onChange={(event) => setForm({ ...form, cost: event.target.value })} required className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-right text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                  <span className="self-center text-xs font-medium text-slate-700">Stock inicial</span>
-                  <input type="number" min={0} value={form.stock} onChange={(event) => setForm({ ...form, stock: event.target.value })} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-right text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
-                  <span className="self-center text-xs font-medium text-slate-700">Stock minimo</span>
-                  <input type="number" min={0} value={form.minimumStock} onChange={(event) => setForm({ ...form, minimumStock: event.target.value })} className="min-h-9 rounded border border-cyan-200 bg-white px-2 text-right text-sm text-slate-900 shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100" />
+              <FormSection title="Inventario" description="Valores base para control de existencia y alertas.">
+                <FormGrid columns="xl:grid-cols-3">
+                  <FormField label="Costo" type="number" min={0} value={form.cost} onChange={(value) => updateField("cost", value)} required />
+                  <FormField label="Stock inicial" type="number" min={0} value={form.stock} onChange={(value) => updateField("stock", value)} />
+                  <FormField label="Stock minimo" type="number" min={0} value={form.minimumStock} onChange={(value) => updateField("minimumStock", value)} />
+                </FormGrid>
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <ModernCheckbox label="Compuesto" description="Producto armado a partir de otros items." checked={form.isComposite} onChange={(value) => updateField("isComposite", value)} />
+                  <ModernCheckbox label="Requiere lote" description="Solicitar lote en movimientos." checked={form.requiresLot} onChange={(value) => updateField("requiresLot", value)} />
+                  <ModernCheckbox label="Requiere serie" description="Solicitar serie individual." checked={form.requiresSerial} onChange={(value) => updateField("requiresSerial", value)} />
+                  <ModernCheckbox label="Tiene vencimiento" description="Controlar fecha de expiracion." checked={form.requiresExpiration} onChange={(value) => updateField("requiresExpiration", value)} />
                 </div>
-                <div className="mt-4 flex flex-wrap gap-4 text-sm text-slate-700">
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.isComposite} onChange={(event) => setForm({ ...form, isComposite: event.target.checked })} /> Compuesto</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresLot} onChange={(event) => setForm({ ...form, requiresLot: event.target.checked })} /> Requiere lote</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresSerial} onChange={(event) => setForm({ ...form, requiresSerial: event.target.checked })} /> Requiere serie</label>
-                  <label className="flex items-center gap-2"><input type="checkbox" checked={form.requiresExpiration} onChange={(event) => setForm({ ...form, requiresExpiration: event.target.checked })} /> Tiene vencimiento</label>
-                </div>
-              </div>
+              </FormSection>
             </div>
 
-            <aside className="flex flex-col items-center justify-start gap-4 pt-10">
-              <div className="flex h-28 w-32 flex-col items-center justify-center text-center text-xs font-semibold text-slate-500">
-                {meta.imagePreview ? (
-                  <img src={meta.imagePreview} alt="" className="h-full w-full rounded object-cover" />
-                ) : (
-                  <>
-                    <Camera size={50} className="mb-1 text-slate-400" />
-                    Imagen<br />No Disponible
-                  </>
+            <aside className="rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/70">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Imagen</p>
+              <div className="mt-3 grid aspect-[4/3] place-items-center overflow-hidden rounded-xl border border-dashed border-slate-300 bg-white text-center text-xs font-semibold text-slate-500 dark:border-slate-700 dark:bg-slate-900">
+                {imagePreview ? <img src={imagePreview} alt="" className="h-full w-full object-cover" /> : (
+                  <div>
+                    <Camera size={46} className="mx-auto mb-2 text-slate-400" />
+                    Imagen no disponible
+                  </div>
                 )}
               </div>
-              <div className="grid w-full grid-cols-[60px_1fr] items-center gap-3">
-                <span className="text-xs font-medium text-slate-700">Imagen</span>
-                <input type="file" accept="image/*" onChange={handleImage} className="block w-full text-xs text-slate-500 file:mr-2 file:rounded file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-semibold file:text-slate-700" />
-              </div>
+              <input type="file" accept="image/*" onChange={handleImage} className="mt-4 block w-full text-xs text-slate-500 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-slate-700 dark:file:bg-slate-800 dark:file:text-slate-200" />
+              {form.imageName && <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">{form.imageName}</p>}
             </aside>
           </div>
 
-          <div className="mt-6 flex flex-col gap-2 border-t border-slate-200 pt-4 sm:flex-row">
-            <Button type="submit" loading={saving} icon={Save} aria-label={editingId ? "Guardar cambios" : "Guardar item"} title={editingId ? "Guardar cambios" : "Guardar item"} className="h-10 w-10 px-0" />
-            {editingId && (
-              <Button type="button" variant="outline" icon={X} aria-label="Cancelar" title="Cancelar" onClick={cancelEdit} className="h-10 w-10 px-0" />
-            )}
-          </div>
-        </form>
+          <ActionBar className="justify-between">
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" loading={saving} icon={Save}>{editingId ? "Guardar cambios" : "Guardar producto"}</Button>
+              <Button type="button" variant="outline" icon={RotateCcw} onClick={resetForm}>Limpiar</Button>
+            </div>
+            {editingId && <Button type="button" variant="danger" icon={X} onClick={resetForm}>Cancelar</Button>}
+          </ActionBar>
+        </FormCard>
+      </form>
 
-        {loading ? (
-          <div className="rounded-lg bg-white p-6 shadow-soft">Cargando productos...</div>
-        ) : (
-          <DataTable columns={columns} rows={products} minWidth="900px" emptyTitle="No hay productos" emptyDescription="Crea un producto o ajusta la busqueda." />
-        )}
-      </section>
-    </div>
+      <FormCard title="Listado de productos" description="Consulta, edita o elimina productos del catalogo.">
+        <DataTable columns={columns} rows={products} loading={loading} minWidth="980px" emptyTitle="No hay productos" emptyDescription="Crea un producto o ajusta la busqueda." />
+      </FormCard>
+    </FormPageLayout>
   );
 }

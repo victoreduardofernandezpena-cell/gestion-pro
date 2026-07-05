@@ -1,10 +1,13 @@
+import { Ban, Copy, CreditCard, Download, Eye, FileText, Mail, Plus, Printer, RotateCcw, Search, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
-import { Ban, Copy, CreditCard, Download, Eye, FileText, Mail, Plus, Printer, Trash2 } from "lucide-react";
-import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { Link, useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import Button from "../components/Button";
 import ConfirmDialog from "../components/ConfirmDialog";
+import EmptyState from "../components/EmptyState";
+import FormField from "../components/FormField";
+import { ActionBar, FormCard, FormGrid, FormPageLayout, FormSection, ModernCheckbox } from "../components/FormLayout";
 import { getBankAccounts } from "../services/bankService";
 import { getCashBoxes } from "../services/cashBoxService";
 import { createInvoicePaymentBreakdown, duplicateInvoice, getInvoices } from "../services/invoiceService";
@@ -45,10 +48,6 @@ const emptySearch = {
   proforma: false
 };
 
-const compactInput = "h-7 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent focus:ring-2 focus:ring-teal-100";
-const wideInput = `${compactInput} md:col-span-4`;
-const mutedInput = "h-7 rounded border border-cyan-200 bg-slate-50 px-2 text-xs text-slate-500 shadow-inner";
-
 const buildInvoiceParams = (filters) => {
   const invoiceText = [filters.ncf, filters.document, filters.series].filter(Boolean).join(" ").trim();
   return {
@@ -77,7 +76,9 @@ export default function Invoices() {
   const loadInvoices = async (filters = search) => {
     setLoading(true);
     try {
-      setInvoices(await getInvoices(buildInvoiceParams(filters)));
+      const rows = await getInvoices(buildInvoiceParams(filters));
+      setInvoices(rows);
+      setSelectedIds((current) => current.filter((id) => rows.some((invoice) => invoice.id === id)));
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar facturas"));
@@ -108,12 +109,9 @@ export default function Invoices() {
     loadInvoices(search);
   };
 
-  const printBatch = async () => {
-    if (selectedIds.length === 0) return setError("Selecciona al menos una factura para imprimir");
-    for (const invoice of invoices.filter((item) => selectedIds.includes(item.id))) {
-      await downloadPdf(invoice);
-    }
-    toast.success("Facturas seleccionadas enviadas a descarga");
+  const clearFilters = () => {
+    setSearch(emptySearch);
+    loadInvoices(emptySearch);
   };
 
   const toggleSelected = (id) => {
@@ -124,8 +122,12 @@ export default function Invoices() {
     setSelectedIds((current) => current.length === invoices.length ? [] : invoices.map((invoice) => invoice.id));
   };
 
-  const printVisible = () => {
-    window.print();
+  const printBatch = async () => {
+    if (selectedIds.length === 0) return setError("Selecciona al menos una factura para imprimir");
+    for (const invoice of invoices.filter((item) => selectedIds.includes(item.id))) {
+      await downloadPdf(invoice);
+    }
+    toast.success("Facturas seleccionadas enviadas a descarga");
   };
 
   const downloadPdf = async (invoice) => {
@@ -143,8 +145,9 @@ export default function Invoices() {
       setConfirmDuplicate(null);
       await loadInvoices(search);
     } catch (err) {
-      setError(getErrorMessage(err, "No fue posible duplicar la factura"));
-      toast.error(getErrorMessage(err, "No fue posible duplicar la factura"));
+      const message = getErrorMessage(err, "No fue posible duplicar la factura");
+      setError(message);
+      toast.error(message);
     }
   };
 
@@ -155,171 +158,145 @@ export default function Invoices() {
       setPaymentInvoice(null);
       await loadInvoices(search);
     } catch (err) {
-      setError(getErrorMessage(err, "No fue posible registrar el pago multiple"));
-      toast.error(getErrorMessage(err, "No fue posible registrar el pago multiple"));
+      const message = getErrorMessage(err, "No fue posible registrar el pago multiple");
+      setError(message);
+      toast.error(message);
     }
   };
 
   return (
-    <div className="space-y-5">
-      <div className="border-b border-slate-300 pb-5">
-        <h1 className="text-3xl font-normal text-slate-950">Factura</h1>
-      </div>
-
-      <div className="border-b border-slate-300 pb-4 text-sm font-semibold">
-        <span className="text-blue-800">Buscar Factura</span>
-        <span className="mx-2 text-slate-400">|</span>
-        <Link to="/invoices/new" className="text-slate-900">Factura</Link>
-        <span className="mx-2 text-slate-400">|</span>
-        <button type="button" onClick={printBatch} className="font-semibold text-slate-900">Imprimir Facturas en lote</button>
+    <FormPageLayout
+      eyebrow="Facturacion"
+      title="Facturas"
+      subtitle="Busca, crea, imprime y administra facturas del negocio desde un panel claro y consistente."
+      actions={(
+        <>
+          <Button variant="outline" icon={Download} onClick={printBatch} disabled={selectedIds.length === 0}>Imprimir seleccionadas</Button>
+          <Button icon={Plus} onClick={() => navigate("/invoices/new")}>Nueva factura</Button>
+        </>
+      )}
+    >
+      <div className="flex flex-wrap gap-2 text-sm font-semibold no-print">
+        <Link to="/invoices" className="rounded-full bg-accent px-4 py-2 text-white shadow-sm">Buscar factura</Link>
+        <Link to="/invoices/new" className="rounded-full border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">Factura</Link>
+        <button type="button" onClick={printBatch} className="rounded-full border border-slate-200 bg-white px-4 py-2 text-slate-700 hover:border-slate-300 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200" disabled={selectedIds.length === 0}>
+          Imprimir facturas en lote
+        </button>
       </div>
 
       <AlertMessage>{error}</AlertMessage>
 
-      <form onSubmit={submitSearch} className="space-y-5">
-        <section className="grid max-w-3xl gap-x-5 gap-y-3 text-xs md:grid-cols-[100px_70px_70px_70px_1fr]">
-          <label className="self-center font-medium text-slate-700">Id</label>
-          <input value={search.id} onChange={(event) => updateSearch("id", event.target.value)} className={compactInput} />
-          <label className="self-center font-medium text-slate-700">Id Tienda</label>
-          <input value={search.storeId} onChange={(event) => updateSearch("storeId", event.target.value)} className={mutedInput} />
-          <span />
+      <FormCard title="Filtros de busqueda" description="Filtra por fechas, cliente, documento, estatus o referencias comerciales. Los campos no disponibles aun quedan listos visualmente para fases posteriores.">
+        <form onSubmit={submitSearch} className="space-y-6">
+          <FormSection title="Datos principales">
+            <FormGrid columns="xl:grid-cols-5">
+              <FormField label="Id" value={search.id} onChange={(value) => updateSearch("id", value)} />
+              <FormField label="Id tienda" value={search.storeId} onChange={(value) => updateSearch("storeId", value)} disabled />
+              <FormField label="Fecha inicio" type="date" value={search.startDate} onChange={(value) => updateSearch("startDate", value)} />
+              <FormField label="Fecha fin" type="date" value={search.endDate} onChange={(value) => updateSearch("endDate", value)} />
+              <FormField label="Nombre completo" value={search.fullName} onChange={(value) => updateSearch("fullName", value)} />
+            </FormGrid>
+          </FormSection>
 
-          <label className="self-center font-medium text-slate-700">Fecha Inicio</label>
-          <input type="date" value={search.startDate} onChange={(event) => updateSearch("startDate", event.target.value)} className="h-7 w-32 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent" />
-          <label className="self-center font-medium text-slate-700">Fecha Fin</label>
-          <input type="date" value={search.endDate} onChange={(event) => updateSearch("endDate", event.target.value)} className="h-7 w-32 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent" />
-          <span />
+          <FormSection title="Documento">
+            <FormGrid columns="xl:grid-cols-6">
+              <FormField label="Cliente" value={search.client} onChange={(value) => updateSearch("client", value)} placeholder="Todos" />
+              <FormField label="Item" value={search.item} onChange={(value) => updateSearch("item", value)} placeholder="Producto o codigo" />
+              <FormField label="Serie" value={search.series} onChange={(value) => updateSearch("series", value)} />
+              <FormField label="Documento" value={search.document} onChange={(value) => updateSearch("document", value)} />
+              <FormField label="Tipo" as="select" value={search.type} onChange={(value) => updateSearch("type", value)}>
+                <option value="">Todos</option>
+                <option value="CONTADO">Contado</option>
+                <option value="CREDITO">Credito</option>
+                <option value="PROFORMA">Proforma</option>
+              </FormField>
+              <FormField label="NCF" value={search.ncf} onChange={(value) => updateSearch("ncf", value)} />
+            </FormGrid>
+          </FormSection>
 
-          <label className="self-center font-medium text-slate-700">Nombre Completo</label>
-          <input value={search.fullName} onChange={(event) => updateSearch("fullName", event.target.value)} className={wideInput} />
+          <FormSection title="Comercial">
+            <FormGrid columns="xl:grid-cols-5">
+              <FormField label="Tienda" value={search.store} onChange={(value) => updateSearch("store", value)} disabled />
+              <FormField label="Vendedor" value={search.seller} onChange={(value) => updateSearch("seller", value)} placeholder="Todos" />
+              <FormField label="Comprobante fiscal" value={search.fiscalReceipt} onChange={(value) => updateSearch("fiscalReceipt", value)} placeholder="Todos" />
+              <FormField label="Moneda" as="select" value={search.currency} onChange={(value) => updateSearch("currency", value)}>
+                <option value="">Todos</option>
+                <option value="DOP">DOP</option>
+              </FormField>
+              <FormField label="Estatus" as="select" value={search.status} onChange={(value) => updateSearch("status", value)}>
+                {statusOptions.map((option) => <option key={option.label} value={option.value}>{option.label}</option>)}
+              </FormField>
+            </FormGrid>
+          </FormSection>
 
-          <label className="self-center font-medium text-slate-700">Cliente</label>
-          <input value={search.client} onChange={(event) => updateSearch("client", event.target.value)} placeholder="Todos" className={wideInput} />
+          <FormSection title="Referencias">
+            <FormGrid columns="xl:grid-cols-4">
+              <FormField label="Id cotizacion" value={search.quotationId} onChange={(value) => updateSearch("quotationId", value)} />
+              <FormField label="Id pre-factura" value={search.preInvoiceId} onChange={(value) => updateSearch("preInvoiceId", value)} />
+              <FormField label="Id conduce" value={search.driverId} onChange={(value) => updateSearch("driverId", value)} />
+              <FormField label="Id orden venta" value={search.orderId} onChange={(value) => updateSearch("orderId", value)} />
+            </FormGrid>
+          </FormSection>
 
-          <label className="self-center font-medium text-slate-700">Item</label>
-          <input value={search.item} onChange={(event) => updateSearch("item", event.target.value)} placeholder="Todos" className={wideInput} />
+          <FormSection title="Tipo de documento">
+            <div className="grid gap-3 sm:grid-cols-2 lg:max-w-2xl">
+              <ModernCheckbox label="Normal" description="Facturas operativas actuales." checked={search.normal} onChange={(value) => updateSearch("normal", value)} />
+              <ModernCheckbox label="Proforma" description="Preparado visualmente para fase posterior." checked={search.proforma} onChange={(value) => updateSearch("proforma", value)} />
+            </div>
+          </FormSection>
 
-          <label className="self-center font-medium text-slate-700">Serie</label>
-          <input value={search.series} onChange={(event) => updateSearch("series", event.target.value)} className="h-7 w-40 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent" />
-          <label className="self-center font-medium text-slate-700">Documento</label>
-          <input value={search.document} onChange={(event) => updateSearch("document", event.target.value)} className="h-7 w-40 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent" />
-          <span />
+          <ActionBar>
+            <Button type="submit" icon={Search} loading={loading}>Buscar</Button>
+            <Button type="button" variant="secondary" icon={RotateCcw} onClick={clearFilters}>Limpiar filtros</Button>
+            <Button type="button" variant="outline" icon={Plus} onClick={() => navigate("/invoices/new")}>Crear nuevo</Button>
+            <Button type="button" variant="outline" icon={Printer} onClick={() => window.print()}>Imprimir vista</Button>
+          </ActionBar>
+        </form>
+      </FormCard>
 
-          <label className="self-center font-medium text-slate-700">Tipo</label>
-          <select value={search.type} onChange={(event) => updateSearch("type", event.target.value)} className="h-7 w-20 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent">
-            <option value="">Todos</option>
-            <option value="CONTADO">Contado</option>
-          </select>
-          <label className="self-center font-medium text-slate-700">NCF</label>
-          <input value={search.ncf} onChange={(event) => updateSearch("ncf", event.target.value)} className="h-7 w-32 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent" />
-          <span />
-
-          <label className="self-center font-medium text-slate-700">Tienda</label>
-          <div className="flex h-9 items-center rounded border border-cyan-200 bg-white px-2 shadow-inner md:col-span-4">
-            <span className="rounded border border-slate-300 bg-slate-100 px-2 py-0.5 text-slate-700">x&nbsp; {search.store}</span>
-          </div>
-
-          <label className="self-center font-medium text-slate-700">Vendedor</label>
-          <input value={search.seller} onChange={(event) => updateSearch("seller", event.target.value)} placeholder="Todos" className={wideInput} />
-
-          <label className="self-center font-medium text-slate-700">Comprobante Fiscal</label>
-          <input value={search.fiscalReceipt} onChange={(event) => updateSearch("fiscalReceipt", event.target.value)} placeholder="Todos" className={wideInput} />
-
-          <label className="self-center font-medium text-slate-700">Moneda</label>
-          <select value={search.currency} onChange={(event) => updateSearch("currency", event.target.value)} className="h-7 w-32 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent">
-            <option value="">Todos</option>
-            <option value="DOP">DOP</option>
-          </select>
-          <span className="md:col-span-3" />
-
-          <label className="self-center font-medium text-slate-700">Id Cotizacion</label>
-          <input value={search.quotationId} onChange={(event) => updateSearch("quotationId", event.target.value)} className={compactInput} />
-          <label className="self-center font-medium text-slate-700">Id Pre-Factura</label>
-          <input value={search.preInvoiceId} onChange={(event) => updateSearch("preInvoiceId", event.target.value)} className={compactInput} />
-          <label className="self-center font-medium text-slate-700">Id Conduce</label>
-          <input value={search.driverId} onChange={(event) => updateSearch("driverId", event.target.value)} className={compactInput} />
-
-          <label className="self-center font-medium text-slate-700">Id Orden Venta</label>
-          <input value={search.orderId} onChange={(event) => updateSearch("orderId", event.target.value)} className={compactInput} />
-          <label className="self-center font-medium text-slate-700">Estatus</label>
-          <select value={search.status} onChange={(event) => updateSearch("status", event.target.value)} className="h-7 w-28 rounded border border-cyan-200 bg-white px-2 text-xs shadow-inner outline-none focus:border-accent">
-            {statusOptions.map((option) => (
-              <option key={option.label} value={option.value}>{option.label}</option>
-            ))}
-          </select>
-          <span />
-          <span />
-
-          <span />
-          <label className="flex items-center gap-2 text-slate-700">
-            <input type="checkbox" checked={search.normal} onChange={(event) => updateSearch("normal", event.target.checked)} />
-            Normal
-          </label>
-          <label className="flex items-center gap-2 text-slate-700">
-            <input type="checkbox" checked={search.proforma} onChange={(event) => updateSearch("proforma", event.target.checked)} />
-            Proforma
-          </label>
-        </section>
-
-        <div className="border-t border-slate-300 pt-4">
-          <div className="ml-0 flex gap-1 md:ml-[100px]">
-            <button type="submit" className="rounded bg-cyan-500 px-5 py-2 text-sm font-bold text-white shadow hover:bg-cyan-600 disabled:opacity-60" disabled={loading}>
-              {loading ? "Buscando..." : "Buscar"}
-            </button>
-            <button type="button" onClick={() => navigate("/invoices/new")} className="rounded bg-cyan-500 px-5 py-2 text-sm font-bold text-white shadow hover:bg-cyan-600">Crear Nuevo</button>
-            <button type="button" onClick={printVisible} className="rounded border border-slate-300 bg-white px-5 py-2 text-sm font-bold text-slate-700 shadow hover:bg-slate-50">Imprimir vista</button>
-          </div>
-        </div>
-      </form>
-
-      <section className="print-area">
-        <h2 className="border-b border-slate-300 pb-4 text-sm font-bold text-blue-800">Resultado de Busqueda</h2>
-        <div className="mt-3 flex flex-wrap items-center gap-2 no-print">
-          <Button variant="outline" size="sm" icon={Download} onClick={printBatch} disabled={selectedIds.length === 0}>Imprimir seleccionadas ({selectedIds.length})</Button>
-        </div>
-        <div className="table-scroll mt-4 overflow-x-auto border border-slate-200 bg-white">
-          <table className="min-w-[1320px] w-full border-collapse text-xs">
-            <thead className="bg-cyan-50 text-left text-slate-900">
+      <FormCard
+        title="Resultado de busqueda"
+        description={`${invoices.length} factura${invoices.length === 1 ? "" : "s"} encontrada${invoices.length === 1 ? "" : "s"}.`}
+        actions={<Button variant="outline" size="sm" icon={Download} onClick={printBatch} disabled={selectedIds.length === 0}>Seleccionadas ({selectedIds.length})</Button>}
+        className="print-area"
+      >
+        <div className="table-scroll overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
+          <table className="w-full min-w-[1120px] text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase tracking-[0.14em] text-slate-500 dark:bg-slate-950/60 dark:text-slate-400">
               <tr>
-                <th className="border border-slate-200 px-3 py-2 font-bold no-print"><input type="checkbox" checked={invoices.length > 0 && selectedIds.length === invoices.length} onChange={toggleAll} /></th>
-                {["Factura", "Fecha", "Tienda", "Cliente", "NCF", "Tipo", "Estatus", "Monto", "Descuento", "Impuesto", "Total", "Cobrado", "Balance", ""].map((header) => (
-                  <th key={header} className="border border-slate-200 px-3 py-2 font-bold">{header}</th>
+                <th className="px-4 py-3 no-print"><input type="checkbox" checked={invoices.length > 0 && selectedIds.length === invoices.length} onChange={toggleAll} /></th>
+                {["Factura", "Fecha", "Cliente", "Tipo", "NCF", "Total", "Cobrado", "Pendiente", "Estado", "Acciones"].map((header) => (
+                  <th key={header} className="px-4 py-3 font-bold">{header}</th>
                 ))}
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {loading ? (
-                <tr><td colSpan={15} className="px-3 py-6 text-center text-slate-500">Cargando facturas...</td></tr>
+                <tr><td colSpan={11} className="px-4 py-8 text-center text-slate-500">Buscando facturas...</td></tr>
               ) : invoices.length === 0 ? (
-                <tr><td colSpan={15} className="px-3 py-6 text-center text-slate-500">No hay facturas con esos filtros.</td></tr>
+                <tr><td colSpan={11} className="p-5"><EmptyState title="Sin facturas" description="Ajusta los filtros o crea una nueva factura." /></td></tr>
               ) : (
                 invoices.map((invoice) => (
-                  <tr key={invoice.id} className="odd:bg-white even:bg-slate-50 hover:bg-cyan-50/60">
-                    <td className="border border-slate-200 px-3 py-2 no-print"><input type="checkbox" checked={selectedIds.includes(invoice.id)} onChange={() => toggleSelected(invoice.id)} /></td>
-                    <td className="border border-slate-200 px-3 py-2 font-semibold">{invoice.invoiceNumber}</td>
-                    <td className="border border-slate-200 px-3 py-2">{formatDate(invoice.createdAt)}</td>
-                    <td className="border border-slate-200 px-3 py-2">Tienda Principal</td>
-                    <td className="border border-slate-200 px-3 py-2">{invoice.client?.name}</td>
-                    <td className="border border-slate-200 px-3 py-2">{invoice.invoiceNumber}</td>
-                    <td className="border border-slate-200 px-3 py-2">Contado</td>
-                    <td className="border border-slate-200 px-3 py-2">
-                      <span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${statusClass[invoice.status]}`}>{statusLabels[invoice.status]}</span>
-                    </td>
-                    <td className="border border-slate-200 px-3 py-2 text-right">{money.format(Number(invoice.subtotal))}</td>
-                    <td className="border border-slate-200 px-3 py-2 text-right">{money.format(Number(invoice.discount))}</td>
-                    <td className="border border-slate-200 px-3 py-2 text-right">{money.format(Number(invoice.tax))}</td>
-                    <td className="border border-slate-200 px-3 py-2 text-right">{money.format(Number(invoice.total))}</td>
-                    <td className="border border-slate-200 px-3 py-2 text-right">{money.format(Number(invoice.paidAmount || 0))}</td>
-                    <td className="border border-slate-200 px-3 py-2 text-right">{money.format(Number(invoice.balance || 0))}</td>
-                    <td className="border border-slate-200 px-3 py-2 no-print">
-                      <div className="flex items-center justify-end gap-2 text-slate-600">
-                        <button type="button" onClick={() => navigate(`/invoices/${invoice.id}`)} aria-label="Ver factura" title="Ver factura"><Eye size={15} /></button>
-                        <button type="button" onClick={() => downloadPdf(invoice)} aria-label="Imprimir factura" title="Imprimir factura"><Printer size={15} /></button>
-                        <button type="button" onClick={() => navigate(`/invoices/${invoice.id}`)} aria-label="Detalle" title="Detalle"><FileText size={15} /></button>
-                        {invoice.status !== "CANCELLED" && <button type="button" onClick={() => setConfirmDuplicate(invoice)} aria-label="Duplicar factura" title="Duplicar factura"><Copy size={15} /></button>}
-                        {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && <button type="button" onClick={() => setPaymentInvoice(invoice)} aria-label="Registrar pago" title="Registrar pago"><CreditCard size={15} /></button>}
-                        <a href={`mailto:?subject=Factura ${invoice.invoiceNumber}`} aria-label="Enviar factura" title="Enviar factura"><Mail size={15} /></a>
-                        {invoice.status === "CANCELLED" && <Ban size={15} />}
+                  <tr key={invoice.id} className="transition hover:bg-teal-50/40 dark:hover:bg-slate-800/60">
+                    <td className="px-4 py-3 no-print"><input type="checkbox" checked={selectedIds.includes(invoice.id)} onChange={() => toggleSelected(invoice.id)} /></td>
+                    <td className="px-4 py-3 font-semibold text-slate-950 dark:text-slate-100">{invoice.invoiceNumber}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{formatDate(invoice.createdAt)}</td>
+                    <td className="px-4 py-3 text-slate-700 dark:text-slate-200">{invoice.client?.name || "-"}</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">Contado</td>
+                    <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{invoice.invoiceNumber}</td>
+                    <td className="px-4 py-3 text-right font-semibold">{money.format(Number(invoice.total || 0))}</td>
+                    <td className="px-4 py-3 text-right">{money.format(Number(invoice.paidAmount || 0))}</td>
+                    <td className="px-4 py-3 text-right">{money.format(Number(invoice.balance || 0))}</td>
+                    <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${statusClass[invoice.status]}`}>{statusLabels[invoice.status] || invoice.status}</span></td>
+                    <td className="px-4 py-3 no-print">
+                      <div className="flex items-center justify-end gap-2 text-slate-600 dark:text-slate-300">
+                        <button type="button" onClick={() => navigate(`/invoices/${invoice.id}`)} aria-label="Ver factura" title="Ver factura"><Eye size={16} /></button>
+                        <button type="button" onClick={() => downloadPdf(invoice)} aria-label="Imprimir factura" title="Imprimir factura"><Printer size={16} /></button>
+                        <button type="button" onClick={() => navigate(`/invoices/${invoice.id}`)} aria-label="Detalle" title="Detalle"><FileText size={16} /></button>
+                        {invoice.status !== "CANCELLED" && <button type="button" onClick={() => setConfirmDuplicate(invoice)} aria-label="Duplicar factura" title="Duplicar factura"><Copy size={16} /></button>}
+                        {invoice.status !== "PAID" && invoice.status !== "CANCELLED" && <button type="button" onClick={() => setPaymentInvoice(invoice)} aria-label="Registrar pago" title="Registrar pago"><CreditCard size={16} /></button>}
+                        <a href={`mailto:?subject=Factura ${invoice.invoiceNumber}`} aria-label="Enviar factura" title="Enviar factura"><Mail size={16} /></a>
+                        {invoice.status === "CANCELLED" && <Ban size={16} />}
                       </div>
                     </td>
                   </tr>
@@ -328,14 +305,9 @@ export default function Invoices() {
             </tbody>
           </table>
         </div>
-      </section>
-      <InvoicePaymentBreakdownModal
-        invoice={paymentInvoice}
-        bankAccounts={bankAccounts}
-        cashBoxes={cashBoxes}
-        onClose={() => setPaymentInvoice(null)}
-        onSave={savePaymentBreakdown}
-      />
+      </FormCard>
+
+      <InvoicePaymentBreakdownModal invoice={paymentInvoice} bankAccounts={bankAccounts} cashBoxes={cashBoxes} onClose={() => setPaymentInvoice(null)} onSave={savePaymentBreakdown} />
       <ConfirmDialog
         open={Boolean(confirmDuplicate)}
         title="Duplicar factura"
@@ -345,7 +317,7 @@ export default function Invoices() {
         onCancel={() => setConfirmDuplicate(null)}
         onConfirm={() => runDuplicate(confirmDuplicate)}
       />
-    </div>
+    </FormPageLayout>
   );
 }
 
@@ -391,13 +363,13 @@ function InvoicePaymentBreakdownModal({ invoice, bankAccounts, cashBoxes, onClos
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/40 p-4">
-      <form onSubmit={submit} className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white p-5 shadow-xl dark:bg-slate-900">
+      <form onSubmit={submit} className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-slate-900">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-wide text-accent">Pago multiple</p>
             <h2 className="text-xl font-semibold text-slate-950 dark:text-slate-100">{invoice.invoiceNumber}</h2>
           </div>
-          <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold dark:border-slate-700">Cerrar</button>
+          <Button type="button" variant="outline" onClick={onClose}>Cerrar</Button>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-4">
           <PaymentMetric label="Total factura" value={totalFactura} />
@@ -407,36 +379,36 @@ function InvoicePaymentBreakdownModal({ invoice, bankAccounts, cashBoxes, onClos
         </div>
         <div className="mt-5 space-y-3">
           {payments.map((payment, index) => (
-            <div key={index} className="grid gap-3 rounded-lg border border-slate-200 p-3 md:grid-cols-[140px_120px_1fr_150px_150px_auto] dark:border-slate-700">
-              <select value={payment.method} onChange={(event) => updatePayment(index, "method", event.target.value)} className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950">
+            <div key={index} className="grid gap-3 rounded-xl border border-slate-200 p-3 md:grid-cols-[140px_120px_1fr_150px_150px_auto] dark:border-slate-700">
+              <select value={payment.method} onChange={(event) => updatePayment(index, "method", event.target.value)} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950">
                 <option value="CASH">Efectivo</option>
                 <option value="BANK_TRANSFER">Transferencia</option>
                 <option value="CARD">Tarjeta</option>
                 <option value="CHECK">Cheque/deposito</option>
                 <option value="OTHER">Otro</option>
               </select>
-              <input type="number" min={0.01} step="0.01" value={payment.amount} onChange={(event) => updatePayment(index, "amount", event.target.value)} className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
-              <input value={payment.reference} onChange={(event) => updatePayment(index, "reference", event.target.value)} placeholder="Referencia" className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+              <input type="number" min={0.01} step="0.01" value={payment.amount} onChange={(event) => updatePayment(index, "amount", event.target.value)} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+              <input value={payment.reference} onChange={(event) => updatePayment(index, "reference", event.target.value)} placeholder="Referencia" className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
               {payment.method === "CASH" ? (
-                <select value={payment.cashBoxId} onChange={(event) => updatePayment(index, "cashBoxId", event.target.value)} className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950">
+                <select value={payment.cashBoxId} onChange={(event) => updatePayment(index, "cashBoxId", event.target.value)} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950">
                   <option value="">Caja</option>
                   {cashBoxes.map((box) => <option key={box.id} value={box.id}>{box.name}</option>)}
                 </select>
               ) : payment.method === "BANK_TRANSFER" ? (
-                <select value={payment.bankAccountId} onChange={(event) => updatePayment(index, "bankAccountId", event.target.value)} className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950">
+                <select value={payment.bankAccountId} onChange={(event) => updatePayment(index, "bankAccountId", event.target.value)} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950">
                   <option value="">Banco</option>
                   {bankAccounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}
                 </select>
               ) : <span className="hidden md:block" />}
-              <input type="date" value={payment.paymentDate} onChange={(event) => updatePayment(index, "paymentDate", event.target.value)} className="min-h-10 rounded-lg border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
-              <button type="button" onClick={() => removePayment(index)} className="grid h-10 w-10 place-items-center rounded-lg border border-rose-200 text-rose-600" aria-label="Eliminar pago"><Trash2 size={16} /></button>
+              <input type="date" value={payment.paymentDate} onChange={(event) => updatePayment(index, "paymentDate", event.target.value)} className="min-h-11 rounded-xl border border-slate-300 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-950" />
+              <button type="button" onClick={() => removePayment(index)} className="grid h-11 w-11 place-items-center rounded-xl border border-rose-200 text-rose-600" aria-label="Eliminar pago"><Trash2 size={16} /></button>
             </div>
           ))}
         </div>
-        <div className="mt-5 flex flex-wrap justify-between gap-3">
+        <ActionBar className="justify-between">
           <Button type="button" variant="outline" icon={Plus} onClick={addPayment}>Agregar pago</Button>
           <Button type="submit" icon={CreditCard}>Registrar pagos</Button>
-        </div>
+        </ActionBar>
       </form>
     </div>
   );
@@ -444,7 +416,7 @@ function InvoicePaymentBreakdownModal({ invoice, bankAccounts, cashBoxes, onClos
 
 function PaymentMetric({ label, value }) {
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-950">
       <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
       <p className="mt-2 text-lg font-semibold text-slate-950 dark:text-slate-100">{money.format(Number(value || 0))}</p>
     </div>
