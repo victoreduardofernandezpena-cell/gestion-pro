@@ -94,6 +94,8 @@ FRONTEND_URLS="http://localhost:5173,http://127.0.0.1:5173"
 PG_DUMP_PATH="C:/Program Files/PostgreSQL/18/bin/pg_dump.exe"
 BACKUP_DIR="./backups"
 BACKUP_RETENTION_DAYS=30
+ENABLE_LOCAL_BACKUPS=false
+DISABLE_LOCAL_BACKUPS=false
 ```
 
 Frontend (`frontend/.env`):
@@ -232,6 +234,15 @@ npm start
 ```
 
 ## Backups
+
+En produccion, los backups locales desde la app estan deshabilitados por defecto. Para Vercel, Render u otro entorno sin almacenamiento persistente, usa los backups del proveedor de la base de datos.
+
+Solo habilita backups locales si el backend corre en un servidor con:
+
+- `pg_dump` instalado.
+- `PG_DUMP_PATH` configurado o `pg_dump` disponible en `PATH`.
+- almacenamiento persistente para `BACKUP_DIR`.
+- `ENABLE_LOCAL_BACKUPS=true`.
 
 Crear backup desde CLI:
 

@@ -55,11 +55,11 @@ export const getPgDumpCommand = () => process.env.PG_DUMP_PATH || "pg_dump";
 export const checkBackupAvailability = async () => {
   const command = getPgDumpCommand();
 
-  if (process.env.DISABLE_LOCAL_BACKUPS === "true") {
+  if (process.env.DISABLE_LOCAL_BACKUPS === "true" || (process.env.NODE_ENV === "production" && process.env.ENABLE_LOCAL_BACKUPS !== "true")) {
     return {
       available: false,
       command,
-      message: "Los backups locales estan deshabilitados por configuracion del servidor."
+      message: "Los backups locales estan deshabilitados en produccion. Usa los backups del proveedor de base de datos o habilita ENABLE_LOCAL_BACKUPS=true en un servidor con pg_dump y almacenamiento persistente."
     };
   }
 
