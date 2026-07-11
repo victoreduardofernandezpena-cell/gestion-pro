@@ -4,6 +4,7 @@ import { Building2, CheckCircle2, Copy, Eye, EyeOff, Lock, Mail, MapPin, Phone, 
 import toast from "react-hot-toast";
 import { useAuth } from "../context/AuthContext";
 import AlertMessage from "../components/AlertMessage";
+import Button from "../components/Button";
 import ThemeToggle from "../components/ThemeToggle";
 import { getErrorMessage } from "../utils/errors";
 
