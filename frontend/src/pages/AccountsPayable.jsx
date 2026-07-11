@@ -7,6 +7,7 @@ import SummaryCard from "../components/SummaryCard";
 import { getAccountsPayable, getAccountsPayableSummary } from "../services/accountsPayableService";
 import { getErrorMessage } from "../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 export default function AccountsPayable() {
   const navigate = useNavigate();
@@ -14,15 +15,23 @@ export default function AccountsPayable() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  useEffect(() => {
-    Promise.all([getAccountsPayable(), getAccountsPayableSummary()])
+  const load = async (page = pagination.page) => {
+    setLoading(true);
+    Promise.all([getAccountsPayable({ page, limit: pagination.limit }), getAccountsPayableSummary()])
       .then(([payables, summaryData]) => {
-        setRows(payables);
+        const normalized = normalizePaginatedResult(payables, { ...pagination, page });
+        setRows(normalized.rows);
+        setPagination(normalized.meta);
         setSummary(summaryData);
       })
       .catch((err) => setError(getErrorMessage(err, "No fue posible cargar cuentas por pagar")))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load(1);
   }, []);
 
   const columns = [
@@ -73,7 +82,7 @@ export default function AccountsPayable() {
           <SummaryCard title="Parciales" value={summary.countPartial || 0} icon={FileClock} tone="blue" />
         </section>
       )}
-      <DataTable columns={columns} rows={rows} minWidth="980px" emptyTitle="Sin cuentas por pagar" emptyDescription="Las compras pagadas no aparecen en esta vista." />
+      <DataTable columns={columns} rows={rows} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin cuentas por pagar" emptyDescription="Las compras pagadas no aparecen en esta vista." />
     </div>
   );
 }

@@ -3,7 +3,7 @@ import SectionHeader from "../SectionHeader";
 
 export default function ChartCard({ title, subtitle, children, className = "" }) {
   return (
-    <AnimatedCard as="section" className={`overflow-hidden rounded-xl border border-slate-200/80 bg-white/95 p-6 shadow-soft shadow-slate-900/5 transition-colors duration-200 dark:border-slate-800/80 dark:bg-slate-900/90 dark:shadow-black/10 ${className}`}>
+    <AnimatedCard as="section" className={`overflow-hidden rounded-2xl border border-warm-300/80 bg-white/90 p-6 shadow-warm backdrop-blur transition-colors duration-200 dark:border-warm-800/80 dark:bg-warm-900/88 dark:shadow-black/20 ${className}`}>
       <SectionHeader title={title} description={subtitle} />
       {children}
     </AnimatedCard>

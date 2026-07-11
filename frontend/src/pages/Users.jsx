@@ -8,6 +8,7 @@ import ResetPasswordModal from "../components/ResetPasswordModal";
 import { changeUserStatus, createUser, getUsers, resetUserPassword, roleLabels, updateUser } from "../services/userService";
 import { getErrorMessage } from "../utils/errors";
 import { formatDate } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const emptyUser = { name: "", email: "", role: "ventas", password: "" };
 
@@ -20,11 +21,15 @@ export default function Users() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
     try {
-      setUsers(await getUsers(filters));
+      const result = await getUsers({ ...filters, page, limit: pagination.limit });
+      const normalized = normalizePaginatedResult(result, { ...pagination, page });
+      setUsers(normalized.rows);
+      setPagination(normalized.meta);
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar usuarios"));
@@ -55,7 +60,7 @@ export default function Users() {
       else await createUser(form);
       setForm(emptyUser);
       setEditingId(null);
-      await load();
+      await load(pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible guardar usuario"));
     } finally {
@@ -71,7 +76,7 @@ export default function Users() {
   const toggle = async (user) => {
     try {
       await changeUserStatus(user.id, !user.isActive);
-      await load();
+      await load(pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cambiar estado"));
     }
@@ -84,7 +89,7 @@ export default function Users() {
       await resetUserPassword(resetUser.id, newPassword);
       toast.success("Contrasena reseteada correctamente");
       setResetUser(null);
-      await load();
+      await load(pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible resetear contrasena"));
     } finally {
@@ -131,7 +136,7 @@ export default function Users() {
           <div className="flex gap-2"><button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? "Guardando..." : "Guardar"}</button>{editingId && <button type="button" onClick={() => { setEditingId(null); setForm(emptyUser); }} className="rounded-lg border border-slate-300 px-4 py-2">Cancelar</button>}</div>
         </form>
         <div className="space-y-4">
-          <form onSubmit={(event) => { event.preventDefault(); load(); }} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
+          <form onSubmit={(event) => { event.preventDefault(); load(1); }} className="rounded-lg border border-slate-200 bg-white p-4 shadow-soft">
             <div className="grid gap-3 md:grid-cols-3">
               <label className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2"><Search size={18} className="text-slate-400" /><input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Nombre o email" className="w-full outline-none" /></label>
               <FormField label="Rol" as="select" value={filters.role} onChange={(value) => setFilters({ ...filters, role: value })}><option value="">Todos</option>{Object.entries(roleLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</FormField>
@@ -139,7 +144,7 @@ export default function Users() {
             </div>
             <button className="mt-3 rounded-lg bg-accent px-4 py-2 font-semibold text-white">Filtrar</button>
           </form>
-          {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando usuarios...</div> : <DataTable columns={columns} rows={users} minWidth="1100px" emptyTitle="No hay usuarios" />}
+          {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando usuarios...</div> : <DataTable columns={columns} rows={users} pagination={pagination} onPageChange={load} minWidth="1100px" emptyTitle="No hay usuarios" />}
         </div>
       </section>
       <ResetPasswordModal

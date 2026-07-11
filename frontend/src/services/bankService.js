@@ -1,12 +1,17 @@
 import api from "./api";
 
-export const getBankAccounts = async () => {
-  const { data } = await api.get("/bank/accounts");
+export const getBankAccounts = async (params = {}) => {
+  const { data } = await api.get("/bank/accounts", { params });
   return data;
 };
 
-export const getBankAccount = async (id) => {
-  const { data } = await api.get(`/bank/accounts/${id}`);
+export const getBankAccount = async (id, params = {}) => {
+  const { data } = await api.get(`/bank/accounts/${id}`, { params });
+  return data;
+};
+
+export const getBankAccountTransactions = async (id, params = {}) => {
+  const { data } = await api.get(`/bank/accounts/${id}/transactions`, { params });
   return data;
 };
 

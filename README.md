@@ -27,6 +27,8 @@ Estado actual: beta real controlada. El sistema esta preparado para pruebas con 
 - Fidelizacion de clientes.
 - Modo claro/oscuro y responsive.
 - Sistema, estado y backups para admin.
+- Listados principales con soporte backend para paginacion, busqueda y filtros.
+- Trazabilidad financiera basica entre pagos, gastos, banco y caja chica.
 
 ## Roles beta
 
@@ -81,6 +83,8 @@ DIRECT_URL="postgresql://USER:PASSWORD@localhost:5432/DATABASE"
 JWT_SECRET="CHANGE_THIS_SECRET"
 JWT_EXPIRES_IN="8h"
 DEBUG_ERRORS=false
+JSON_BODY_LIMIT="1mb"
+DISABLE_PUBLIC_REGISTER=false
 LOGIN_RATE_LIMIT_WINDOW_MS=900000
 LOGIN_RATE_LIMIT_MAX=10
 DISABLE_LOGIN_RATE_LIMIT=false
@@ -95,6 +99,7 @@ Frontend (`frontend/.env`):
 
 ```env
 VITE_API_URL="http://localhost:4000/api"
+VITE_DISABLE_PUBLIC_REGISTER=false
 ```
 
 No guardes credenciales reales en archivos versionados.
@@ -176,6 +181,15 @@ npm run dev
 4. Ejecuta `MANUAL_TESTING_CHECKLIST.md`.
 5. Revisa permisos con URL directa para rutas no permitidas.
 6. Revisa que no aparezcan pantallas en blanco, `undefined`, `NaN` ni errores genericos.
+7. Prueba listados grandes usando busqueda, filtros y paginacion donde el frontend ya lo exponga.
+8. Confirma que pagos y gastos creen movimientos relacionados en banco o caja con su origen.
+
+Pruebas automatizadas backend:
+
+```bash
+cd backend
+npm test
+```
 
 ## Build
 
@@ -221,6 +235,9 @@ Haz siempre un backup antes de restaurar y prueba la restauracion en un entorno 
 
 - Cambia `JWT_SECRET` antes de cualquier prueba real.
 - Configura CORS con `FRONTEND_URL` y `FRONTEND_URLS`.
+- En produccion, configura `DISABLE_PUBLIC_REGISTER=true` si no quieres permitir registro publico.
+- En frontend, configura `VITE_DISABLE_PUBLIC_REGISTER=true` junto con `DISABLE_PUBLIC_REGISTER=true` para ocultar la opcion de registro.
+- Mantiene `JSON_BODY_LIMIT` en un valor bajo salvo que necesites cargas grandes.
 - Usa HTTPS en produccion.
 - Mantiene `DISABLE_LOGIN_RATE_LIMIT=false`.
 - Mantiene `DEBUG_ERRORS=false`.

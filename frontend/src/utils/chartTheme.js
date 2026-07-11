@@ -2,22 +2,22 @@ export function getChartTheme(theme) {
   const isDark = theme === "dark";
 
   return {
-    axis: isDark ? "#94a3b8" : "#64748b",
-    grid: isDark ? "#1e293b" : "#e2e8f0",
-    text: isDark ? "#cbd5e1" : "#475569",
-    muted: isDark ? "#64748b" : "#94a3b8",
-    tooltipBackground: isDark ? "#020617" : "#ffffff",
-    tooltipBorder: isDark ? "#334155" : "#e2e8f0",
-    tooltipText: isDark ? "#f1f5f9" : "#0f172a",
-    areaFill: isDark ? "rgba(20, 184, 166, 0.18)" : "rgba(20, 184, 166, 0.14)",
+    axis: isDark ? "#c7bcaf" : "#7a716a",
+    grid: isDark ? "#3a312a" : "#e6ded4",
+    text: isDark ? "#f7f3ec" : "#2b2b2b",
+    muted: isDark ? "#8d8074" : "#a99b8d",
+    tooltipBackground: isDark ? "#25201b" : "#fffcf7",
+    tooltipBorder: isDark ? "#3a312a" : "#e6ded4",
+    tooltipText: isDark ? "#f7f3ec" : "#1f2933",
+    areaFill: isDark ? "rgba(231, 166, 138, 0.16)" : "rgba(95, 124, 99, 0.14)",
     colors: {
-      sales: "#0f9488",
-      purchases: "#0284c7",
-      profit: "#10b981",
-      expenses: "#f59e0b",
-      receivable: "#06b6d4",
-      payable: "#f43f5e",
-      loyalty: "#8b5cf6"
+      sales: "#5f7c63",
+      purchases: "#c46a4a",
+      profit: "#3f5f46",
+      expenses: "#d99a3d",
+      receivable: "#8a6f4d",
+      payable: "#c75c54",
+      loyalty: "#e7a68a"
     }
   };
 }

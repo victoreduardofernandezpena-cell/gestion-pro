@@ -11,15 +11,15 @@ const emptyForm = { name: "", email: "", password: "", companyName: "", companyC
 function LoginField({ icon: Icon, label, helper, ...props }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">{label}</span>
+      <span className="mb-1.5 block text-sm font-semibold text-warm-700 dark:text-warm-200">{label}</span>
       <div className="relative">
-        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+        <Icon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-600" />
         <input
           {...props}
-          className={`h-12 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-3 text-slate-900 outline-none transition focus:border-accent focus:ring-4 focus:ring-teal-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-teal-950 ${props.className || ""}`}
+          className={`h-12 w-full rounded-xl border border-warm-500 bg-warm-50 pl-10 pr-3 text-ink outline-none transition focus:border-olive-500 focus:ring-4 focus:ring-olive-500/20 dark:border-warm-800 dark:bg-warm-950 dark:text-warm-100 dark:focus:ring-terracotta-300/20 ${props.className || ""}`}
         />
       </div>
-      {helper && <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">{helper}</p>}
+      {helper && <p className="mt-1.5 text-xs leading-relaxed text-warm-700 dark:text-warm-600">{helper}</p>}
     </label>
   );
 }
@@ -27,6 +27,7 @@ function LoginField({ icon: Icon, label, helper, ...props }) {
 export default function Login() {
   const { login, register, isAuthenticated, user } = useAuth();
   const navigate = useNavigate();
+  const canRegister = import.meta.env.VITE_DISABLE_PUBLIC_REGISTER !== "true";
   const [mode, setMode] = useState("login");
   const [form, setForm] = useState(emptyForm);
   const [showPassword, setShowPassword] = useState(false);
@@ -36,6 +37,7 @@ export default function Login() {
   if (isAuthenticated) return <Navigate to={user?.mustChangePassword ? "/cambiar-contrasena-obligatorio" : "/"} replace />;
 
   const changeMode = (nextMode) => {
+    if (nextMode === "register" && !canRegister) return;
     setMode(nextMode);
     setError("");
   };
@@ -45,6 +47,9 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
+      if (mode === "register" && !canRegister) {
+        throw new Error("El registro publico esta desactivado");
+      }
       const nextUser = mode === "login" ? await login(form) : await register(form);
       navigate(nextUser.mustChangePassword ? "/cambiar-contrasena-obligatorio" : "/");
     } catch (err) {
@@ -58,15 +63,15 @@ export default function Login() {
   const subtitle = mode === "login" ? "Entra con tu correo y el codigo de compania." : "Crea tu empresa piloto y entra como administrador.";
 
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-950 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100">
+    <div className="min-h-screen bg-warm-200 text-ink transition-colors duration-200 dark:bg-warm-950 dark:text-warm-100">
       <div className="absolute right-5 top-5 z-10">
         <ThemeToggle />
       </div>
 
       <main className="grid min-h-screen lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="hidden bg-slate-950 px-10 py-10 text-white lg:flex lg:flex-col lg:justify-between">
+        <section className="hidden bg-[linear-gradient(160deg,#3f5f46_0%,#5f7c63_48%,#c46a4a_130%)] px-10 py-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div className="flex items-center gap-3">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-accent text-lg font-bold">GP</div>
+            <div className="grid h-11 w-11 place-items-center rounded-2xl bg-warm-50 text-lg font-bold text-olive-700 shadow-lg shadow-black/10">GP</div>
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/50">Gestion Pro</p>
               <p className="font-semibold">ERP multiempresa</p>
@@ -74,7 +79,7 @@ export default function Login() {
           </div>
 
           <div className="max-w-xl">
-            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-sm text-teal-100">
+            <div className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-sm text-warm-100">
               <Sparkles size={15} />
               Piloto web listo para operar
             </div>
@@ -90,7 +95,7 @@ export default function Login() {
               ["Roles y seguridad", "Administra permisos desde el panel."],
               ["Listo para piloto", "Sin instalar nada en la computadora del cliente."]
             ].map(([itemTitle, description]) => (
-              <div key={itemTitle} className="rounded-lg border border-white/10 bg-white/[0.04] p-4">
+              <div key={itemTitle} className="rounded-2xl border border-white/15 bg-white/[0.08] p-4">
                 <p className="font-semibold text-white">{itemTitle}</p>
                 <p className="mt-1 text-white/55">{description}</p>
               </div>
@@ -99,19 +104,19 @@ export default function Login() {
         </section>
 
         <section className="flex items-center justify-center px-5 py-10">
-          <form onSubmit={handleSubmit} className="w-full max-w-[460px] rounded-lg border border-slate-200 bg-white p-7 shadow-soft dark:border-slate-800 dark:bg-slate-900 sm:p-8">
+          <form onSubmit={handleSubmit} className="w-full max-w-[460px] rounded-2xl border border-warm-400 bg-warm-50 p-7 shadow-warm dark:border-warm-800 dark:bg-warm-900 sm:p-8">
             <div className="mb-7">
-              <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-lg bg-teal-50 text-accent dark:bg-teal-950">
+              <div className="mb-5 inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-olive-500/10 text-olive-700 dark:bg-olive-500/20 dark:text-olive-500">
                 <ShieldCheck size={22} />
               </div>
               <p className="text-sm font-semibold text-accent">Acceso seguro</p>
-              <h2 className="mt-2 text-3xl font-semibold tracking-normal text-slate-950 dark:text-slate-100">{title}</h2>
-              <p className="mt-2 text-sm leading-6 text-slate-500 dark:text-slate-400">{subtitle}</p>
+              <h2 className="mt-2 text-3xl font-semibold tracking-normal text-ink dark:text-warm-100">{title}</h2>
+              <p className="mt-2 text-sm leading-6 text-warm-700 dark:text-warm-600">{subtitle}</p>
             </div>
 
-            <div className="mb-5 grid grid-cols-2 rounded-lg bg-slate-100 p-1 text-sm font-semibold dark:bg-slate-800">
-              <button type="button" onClick={() => changeMode("login")} className={`h-10 rounded-md transition ${mode === "login" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}>Entrar</button>
-              <button type="button" onClick={() => changeMode("register")} className={`h-10 rounded-md transition ${mode === "register" ? "bg-white text-slate-950 shadow-sm dark:bg-slate-950 dark:text-white" : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"}`}>Registrarse</button>
+            <div className={`mb-5 grid ${canRegister ? "grid-cols-2" : "grid-cols-1"} rounded-xl bg-warm-200 p-1 text-sm font-semibold dark:bg-warm-950`}>
+              <button type="button" onClick={() => changeMode("login")} className={`h-10 rounded-lg transition ${mode === "login" ? "bg-warm-50 text-ink shadow-sm dark:bg-warm-900 dark:text-warm-100" : "text-warm-700 hover:text-ink dark:hover:text-warm-100"}`}>Entrar</button>
+              {canRegister && <button type="button" onClick={() => changeMode("register")} className={`h-10 rounded-lg transition ${mode === "register" ? "bg-warm-50 text-ink shadow-sm dark:bg-warm-900 dark:text-warm-100" : "text-warm-700 hover:text-ink dark:hover:text-warm-100"}`}>Registrarse</button>}
             </div>
 
             <div className="mb-5">
@@ -142,22 +147,22 @@ export default function Login() {
               />
 
               <label className="block">
-                <span className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">Contrasena</span>
+                <span className="mb-1.5 block text-sm font-semibold text-warm-700 dark:text-warm-200">Contrasena</span>
                 <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-warm-600" />
                   <input
-                    className="h-12 w-full rounded-lg border border-slate-300 bg-white pl-10 pr-12 text-slate-900 outline-none transition focus:border-accent focus:ring-4 focus:ring-teal-100 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:focus:ring-teal-950"
+                    className="h-12 w-full rounded-xl border border-warm-500 bg-warm-50 pl-10 pr-12 text-ink outline-none transition focus:border-olive-500 focus:ring-4 focus:ring-olive-500/20 dark:border-warm-800 dark:bg-warm-950 dark:text-warm-100 dark:focus:ring-terracotta-300/20"
                     value={form.password}
                     onChange={(event) => setForm({ ...form, password: event.target.value })}
                     type={showPassword ? "text" : "password"}
                     autoComplete={mode === "login" ? "current-password" : "new-password"}
                     required
                   />
-                  <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200" aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}>
+                  <button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-3 top-1/2 -translate-y-1/2 text-warm-600 hover:text-ink dark:hover:text-warm-100" aria-label={showPassword ? "Ocultar contrasena" : "Mostrar contrasena"}>
                     {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
-                {mode === "register" && <p className="mt-1.5 text-xs leading-relaxed text-slate-500 dark:text-slate-400">Minimo 8 caracteres, con letras y numeros.</p>}
+                {mode === "register" && <p className="mt-1.5 text-xs leading-relaxed text-warm-700 dark:text-warm-600">Minimo 8 caracteres, con letras y numeros.</p>}
               </label>
 
               {mode === "register" && (
@@ -186,12 +191,12 @@ export default function Login() {
               />
             </div>
 
-            <button disabled={loading} className="mt-6 h-12 w-full rounded-lg bg-accent px-4 font-semibold text-white transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60">
+            <button disabled={loading} className="mt-6 h-12 w-full rounded-xl bg-olive-500 px-4 font-semibold text-white transition hover:bg-olive-700 disabled:cursor-not-allowed disabled:opacity-60">
               {loading ? "Procesando..." : mode === "login" ? "Entrar" : "Crear cuenta"}
             </button>
 
-            <p className="mt-5 text-center text-xs leading-5 text-slate-500 dark:text-slate-400">
-              {mode === "login" ? "Si aun no tienes empresa registrada, usa la pestana Registrarse." : "Al crear la cuenta, quedaras como administrador de esa empresa."}
+            <p className="mt-5 text-center text-xs leading-5 text-warm-700 dark:text-warm-600">
+              {mode === "login" ? (canRegister ? "Si aun no tienes empresa registrada, usa la pestana Registrarse." : "Solicita acceso al administrador de tu empresa.") : "Al crear la cuenta, quedaras como administrador de esa empresa."}
             </p>
           </form>
         </section>

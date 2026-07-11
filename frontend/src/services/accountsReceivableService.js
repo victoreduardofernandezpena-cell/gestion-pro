@@ -1,7 +1,7 @@
 import api from "./api";
 
-export const getAccountsReceivable = async () => {
-  const { data } = await api.get("/accounts-receivable");
+export const getAccountsReceivable = async (params = {}) => {
+  const { data } = await api.get("/accounts-receivable", { params });
   return data;
 };
 

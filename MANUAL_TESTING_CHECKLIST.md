@@ -8,6 +8,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] No aparece texto `undefined`, `NaN` ni mensajes tecnicos confusos.
 - [ ] Los errores muestran mensajes claros para el usuario.
 - [ ] Las tablas, formularios, modales y graficos cargan con pocos datos y con cero datos.
+- [ ] Los listados con muchos registros permiten navegar sin cargar todo de golpe cuando hay paginacion disponible.
 - [ ] Las acciones sensibles quedan registradas en auditoria cuando aplica.
 
 ## Login, sesion y logout
@@ -53,6 +54,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Validar email invalido.
 - [ ] Validar duplicados de RNC o identificacion si aplica.
 - [ ] Buscar o filtrar clientes.
+- [ ] Paginacion de clientes conserva la busqueda al cambiar de pagina.
 
 ## Productos
 
@@ -76,6 +78,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Registrar ajuste con motivo.
 - [ ] Ver historial de movimientos.
 - [ ] Filtros por producto/almacen funcionan.
+- [ ] Busqueda y paginacion de inventario no mezclan productos de otra empresa.
 
 ## Almacenes
 
@@ -115,6 +118,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Bloquear monto cero o negativo.
 - [ ] Bloquear pago mayor al balance pendiente.
 - [ ] Actualizar balance, estado de factura, banco/caja y cuentas por cobrar.
+- [ ] Movimiento de banco o caja generado por pago conserva documento origen y numero de factura.
 
 ## PDF de factura
 
@@ -162,6 +166,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Registrar transferencia.
 - [ ] Bloquear montos invalidos.
 - [ ] Validar balances despues de pagos, gastos y transferencias.
+- [ ] Movimientos automaticos muestran origen de pago, gasto o transferencia cuando aplica.
 
 ## Caja chica
 
@@ -171,6 +176,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Registrar salida.
 - [ ] Bloquear salida mayor al balance.
 - [ ] Validar balances despues de pagos y gastos.
+- [ ] Movimientos automaticos muestran origen de pago o gasto cuando aplica.
 
 ## Gastos
 
@@ -180,6 +186,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Registrar gasto desde otra fuente.
 - [ ] Bloquear montos en cero o negativos.
 - [ ] Filtros por fecha/categoria funcionan.
+- [ ] Gasto pagado desde banco o caja conserva origen financiero en el movimiento relacionado.
 
 ## Reportes
 
@@ -205,6 +212,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Ventas, almacen y contabilidad no ven Seguridad ni Auditoria.
 - [ ] Acceso directo a rutas sin permiso muestra Unauthorized.
 - [ ] API devuelve 401 sin token, 403 sin permiso y 404 en rutas inexistentes.
+- [ ] Registro publico queda bloqueado cuando `DISABLE_PUBLIC_REGISTER=true`.
 
 ## Configuracion
 

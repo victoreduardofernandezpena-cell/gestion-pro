@@ -49,7 +49,7 @@ import { getChartTheme } from "../utils/chartTheme";
 import { getErrorMessage } from "../utils/errors";
 import { money } from "../utils/format";
 
-const colors = ["#0f766e", "#0284c7", "#f59e0b", "#dc2626", "#7c3aed", "#16a34a"];
+const colors = ["#5f7c63", "#c46a4a", "#d99a3d", "#8a6f4d", "#c75c54", "#e7a68a"];
 
 const today = new Date().toISOString().slice(0, 10);
 
@@ -132,8 +132,8 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-soft dark:border-slate-800/80 dark:bg-slate-900/80 sm:p-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-br from-teal-500/12 via-sky-500/8 to-transparent" />
+      <div className="relative overflow-hidden rounded-2xl border border-warm-400/80 bg-warm-50/90 p-5 shadow-soft dark:border-warm-800 dark:bg-warm-900/80 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-br from-olive-500/10 via-terracotta-300/10 to-transparent" />
         <PageHeader
           className="relative"
           eyebrow="Resumen ejecutivo"

@@ -3,12 +3,13 @@ import { EXPENSE_CATEGORIES, EXPENSE_PAYMENT_SOURCES } from "../constants/financ
 import { parseIdParam } from "../utils/http.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
+import { roundMoney } from "../utils/financialRules.js";
 
 const dateValue = (value) => {
   const date = value ? new Date(value) : null;
   return date && !Number.isNaN(date.getTime()) ? date : null;
 };
-const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 const includeExpense = {
   bankAccount: { select: { id: true, name: true, bankName: true } },
@@ -18,7 +19,9 @@ const includeExpense = {
 export const listExpenses = async (req, res, next) => {
   try {
     const { category, paymentSource, date } = req.query;
+    const id = req.query.expenseId ? Number(req.query.expenseId) : null;
     const where = { companyId: requireCompanyId(req) };
+    if (Number.isInteger(id) && id > 0) where.id = id;
     if (category && EXPENSE_CATEGORIES.includes(category)) where.category = category;
     if (paymentSource && EXPENSE_PAYMENT_SOURCES.includes(paymentSource)) where.paymentSource = paymentSource;
     if (date) {
@@ -29,7 +32,7 @@ export const listExpenses = async (req, res, next) => {
         where.expenseDate = { gte: start, lt: end };
       }
     }
-    res.json(await prisma.expense.findMany({ where, include: includeExpense, orderBy: { expenseDate: "desc" } }));
+    res.json(await findManyMaybePaginated(prisma.expense, { where, include: includeExpense, orderBy: { expenseDate: "desc" } }, req.query));
   } catch (error) {
     next(error);
   }
@@ -64,6 +67,10 @@ export const createExpense = async (req, res, next) => {
 
     const expense = await prisma.$transaction(async (tx) => {
       const companyId = requireCompanyId(req);
+      const expense = await tx.expense.create({
+        data: { companyId, category, description, amount, paymentSource, bankAccountId: paymentSource === "BANK" ? bankAccountId : null, cashBoxId: paymentSource === "CASH_BOX" ? cashBoxId : null, reference: req.body.reference || null, expenseDate },
+        include: includeExpense
+      });
       if (paymentSource === "BANK") {
         if (!bankAccountId) {
           const error = new Error("Debe seleccionar una cuenta bancaria");
@@ -81,8 +88,8 @@ export const createExpense = async (req, res, next) => {
           error.status = 400;
           throw error;
         }
-        await tx.bankAccount.update({ where: { id: bankAccountId }, data: { currentBalance: money(Number(account.currentBalance) - amount) } });
-        await tx.bankTransaction.create({ data: { companyId, bankAccountId, type: "WITHDRAWAL", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, transactionDate: expenseDate } });
+        await tx.bankAccount.update({ where: { id: bankAccountId }, data: { currentBalance: roundMoney(Number(account.currentBalance) - amount) } });
+        await tx.bankTransaction.create({ data: { companyId, bankAccountId, type: "WITHDRAWAL", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, sourceType: "EXPENSE", sourceId: expense.id, sourceNumber: expense.description, transactionDate: expenseDate } });
       }
       if (paymentSource === "CASH_BOX") {
         if (!cashBoxId) {
@@ -101,13 +108,10 @@ export const createExpense = async (req, res, next) => {
           error.status = 400;
           throw error;
         }
-        await tx.cashBox.update({ where: { id: cashBoxId }, data: { currentBalance: money(Number(cashBox.currentBalance) - amount) } });
-        await tx.cashTransaction.create({ data: { companyId, cashBoxId, type: "CASH_OUT", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, transactionDate: expenseDate } });
+        await tx.cashBox.update({ where: { id: cashBoxId }, data: { currentBalance: roundMoney(Number(cashBox.currentBalance) - amount) } });
+        await tx.cashTransaction.create({ data: { companyId, cashBoxId, type: "CASH_OUT", amount, description: `Gasto: ${description}`, reference: req.body.reference || null, sourceType: "EXPENSE", sourceId: expense.id, sourceNumber: expense.description, transactionDate: expenseDate } });
       }
-      return tx.expense.create({
-        data: { companyId, category, description, amount, paymentSource, bankAccountId: paymentSource === "BANK" ? bankAccountId : null, cashBoxId: paymentSource === "CASH_BOX" ? cashBoxId : null, reference: req.body.reference || null, expenseDate },
-        include: includeExpense
-      });
+      return expense;
     }, { isolationLevel: "Serializable" });
     res.status(201).json(expense);
     await createAuditLog({ action: "EXPENSE_CREATED", module: "GASTOS", entityType: "Expense", entityId: expense.id, description: `Gasto creado: ${description}`, req });

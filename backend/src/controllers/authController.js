@@ -11,7 +11,7 @@ const serializeCompany = (company) => ({
   code: company.code
 });
 
-const normalizeCompanyCode = (value) => value?.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+export const normalizeCompanyCode = (value) => value?.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
 
 const ensureCompanyDefaults = async (tx, company) => {
   await tx.companySetting.upsert({
@@ -109,6 +109,10 @@ const buildToken = ({ user, company, role }) => {
 
 export const register = async (req, res, next) => {
   try {
+    if (process.env.DISABLE_PUBLIC_REGISTER === "true") {
+      return res.status(403).json({ message: "Registro publico deshabilitado. Solicita acceso al administrador." });
+    }
+
     const name = req.body.name?.trim();
     const email = req.body.email?.trim().toLowerCase();
     const password = req.body.password;

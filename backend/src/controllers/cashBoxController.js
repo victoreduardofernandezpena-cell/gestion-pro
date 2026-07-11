@@ -2,16 +2,18 @@ import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
+import { calculateMovementBalance, roundMoney } from "../utils/financialRules.js";
+import { attachFinancialOrigins, attachFinancialOriginsToResult } from "../utils/financialTraceability.js";
 
 const txDate = (value) => {
   const date = value ? new Date(value) : new Date();
   return Number.isNaN(date.getTime()) ? null : date;
 };
-const money = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 export const listCashBoxes = async (req, res, next) => {
   try {
-    res.json(await prisma.cashBox.findMany({ where: { companyId: requireCompanyId(req) }, orderBy: { createdAt: "desc" } }));
+    res.json(await findManyMaybePaginated(prisma.cashBox, { where: { companyId: requireCompanyId(req) }, orderBy: { createdAt: "desc" } }, req.query));
   } catch (error) {
     next(error);
   }
@@ -21,9 +23,16 @@ export const getCashBox = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
-    const cashBox = await prisma.cashBox.findFirst({ where: { id, companyId: requireCompanyId(req) }, include: { transactions: { where: { companyId: requireCompanyId(req) }, orderBy: { transactionDate: "desc" } } } });
+    const companyId = requireCompanyId(req);
+    const includeTransactions = req.query.includeTransactions !== "false";
+    const cashBox = await prisma.cashBox.findFirst({
+      where: { id, companyId },
+      ...(includeTransactions ? { include: { transactions: { where: { companyId }, orderBy: { transactionDate: "desc" } } } } : {})
+    });
     if (!cashBox) return res.status(404).json({ message: "Caja chica no encontrada" });
-    res.json(cashBox);
+    if (!cashBox.transactions) return res.json(cashBox);
+    const transactions = await attachFinancialOrigins(cashBox.transactions, { prismaClient: prisma, companyId });
+    res.json({ ...cashBox, transactions });
   } catch (error) {
     next(error);
   }
@@ -82,13 +91,15 @@ export const listCashTransactions = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de caja chica invalido" });
-    res.json(await prisma.cashTransaction.findMany({ where: { cashBoxId: id, companyId: requireCompanyId(req) }, orderBy: { transactionDate: "desc" } }));
+    const companyId = requireCompanyId(req);
+    const transactions = await findManyMaybePaginated(prisma.cashTransaction, { where: { cashBoxId: id, companyId }, orderBy: { transactionDate: "desc" } }, req.query);
+    res.json(await attachFinancialOriginsToResult(transactions, { prismaClient: prisma, companyId }));
   } catch (error) {
     next(error);
   }
 };
 
-const createCashMovement = async ({ req, id, type, amount, description, reference, transactionDate, nextBalanceOverride }) => {
+const createCashMovement = async ({ req, id, type, amount, description, reference, transactionDate, nextBalanceOverride, sourceType = "MANUAL_CASH_MOVEMENT", sourceId = null, sourceNumber = null }) => {
   return prisma.$transaction(async (tx) => {
     const companyId = requireCompanyId(req);
     const cashBox = await tx.cashBox.findFirst({ where: { id, companyId } });
@@ -97,14 +108,9 @@ const createCashMovement = async ({ req, id, type, amount, description, referenc
       error.status = 404;
       throw error;
     }
-    const nextBalance = nextBalanceOverride ?? (type === "CASH_IN" ? Number(cashBox.currentBalance) + amount : Number(cashBox.currentBalance) - amount);
-    if (nextBalance < 0) {
-      const error = new Error("Balance insuficiente en caja chica");
-      error.status = 400;
-      throw error;
-    }
-    const updated = await tx.cashBox.update({ where: { id }, data: { currentBalance: money(nextBalance) } });
-    const transaction = await tx.cashTransaction.create({ data: { companyId, cashBoxId: id, type, amount, description, reference, transactionDate } });
+    const nextBalance = nextBalanceOverride ?? calculateMovementBalance(cashBox.currentBalance, amount, type, { increaseTypes: ["CASH_IN"], insufficientMessage: "Balance insuficiente en caja chica" });
+    const updated = await tx.cashBox.update({ where: { id }, data: { currentBalance: roundMoney(nextBalance) } });
+    const transaction = await tx.cashTransaction.create({ data: { companyId, cashBoxId: id, type, amount, description, reference, sourceType, sourceId, sourceNumber, transactionDate } });
     return { cashBox: updated, transaction };
   }, { isolationLevel: "Serializable" });
 };
@@ -153,7 +159,7 @@ export const adjustment = async (req, res, next) => {
     if (!transactionDate) return res.status(400).json({ message: "Fecha invalida" });
     const current = await prisma.cashBox.findFirst({ where: { id, companyId: requireCompanyId(req) } });
     if (!current) return res.status(404).json({ message: "Caja chica no encontrada" });
-    const delta = money(newBalance - Number(current.currentBalance));
+    const delta = roundMoney(newBalance - Number(current.currentBalance));
     const result = await createCashMovement({ req, id, type: "ADJUSTMENT", amount: Math.abs(delta), description: reason, reference: req.body.reference || null, transactionDate, nextBalanceOverride: newBalance });
     res.status(201).json(result);
     await createAuditLog({ action: "CASH_TRANSACTION_CREATED", module: "CAJA_CHICA", entityType: "CashTransaction", entityId: result.transaction.id, description: `Ajuste de caja: ${reason}`, req });

@@ -4,8 +4,7 @@ import { PAYMENT_METHODS } from "../constants/billing.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { calculateLoyaltyReward, getActiveLoyaltySetting } from "../utils/loyaltyCalculator.js";
 import { requireCompanyId } from "../utils/companyScope.js";
-
-const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+import { applyPaymentBreakdown, calculatePaymentState, roundMoney } from "../utils/financialRules.js";
 
 export const listInvoicePayments = async (req, res, next) => {
   try {
@@ -63,16 +62,7 @@ export const createInvoicePayment = async (req, res, next) => {
         throw error;
       }
 
-      const balance = Number(invoice.balance);
-      if (amount > balance) {
-        const error = new Error("El monto no puede ser mayor al balance pendiente");
-        error.status = 400;
-        throw error;
-      }
-
-      const nextPaidAmount = Math.round((Number(invoice.paidAmount) + amount + Number.EPSILON) * 100) / 100;
-      const nextBalance = Math.round((Number(invoice.total) - nextPaidAmount + Number.EPSILON) * 100) / 100;
-      const nextStatus = nextBalance <= 0 ? "PAID" : "PARTIAL";
+      const { nextPaidAmount, nextBalance, nextStatus } = calculatePaymentState(invoice, amount);
 
       const payment = await tx.payment.create({
         data: { companyId, invoiceId, amount, method, reference, notes, paymentDate }
@@ -97,6 +87,9 @@ export const createInvoicePayment = async (req, res, next) => {
             amount,
             description: `Cobro factura #${invoice.invoiceNumber}`,
             reference,
+            sourceType: "INVOICE_PAYMENT",
+            sourceId: payment.id,
+            sourceNumber: invoice.invoiceNumber,
             transactionDate: paymentDate
           }
         });
@@ -121,6 +114,9 @@ export const createInvoicePayment = async (req, res, next) => {
             amount,
             description: `Cobro factura #${invoice.invoiceNumber}`,
             reference,
+            sourceType: "INVOICE_PAYMENT",
+            sourceId: payment.id,
+            sourceNumber: invoice.invoiceNumber,
             transactionDate: paymentDate
           }
         });
@@ -239,14 +235,13 @@ export const createInvoicePaymentBreakdown = async (req, res, next) => {
         throw error;
       }
 
-      let remaining = roundMoney(Number(invoice.balance));
-      const received = roundMoney(normalized.reduce((sum, payment) => sum + payment.amount, 0));
+      const breakdown = applyPaymentBreakdown(invoice.balance, normalized);
+      const { received } = breakdown;
       const createdPayments = [];
       let loyaltyReward = null;
 
-      for (const payment of normalized) {
-        if (remaining <= 0) break;
-        const appliedAmount = roundMoney(Math.min(payment.amount, remaining));
+      for (const payment of breakdown.appliedPayments) {
+        const appliedAmount = payment.appliedAmount;
         const created = await tx.payment.create({
           data: {
             companyId,
@@ -259,7 +254,6 @@ export const createInvoicePaymentBreakdown = async (req, res, next) => {
           }
         });
         createdPayments.push(created);
-        remaining = roundMoney(remaining - appliedAmount);
 
         if (payment.bankAccountId) {
           const bankAccount = await tx.bankAccount.findFirst({ where: { id: payment.bankAccountId, companyId } });
@@ -270,7 +264,7 @@ export const createInvoicePaymentBreakdown = async (req, res, next) => {
           }
           await tx.bankAccount.update({ where: { id: payment.bankAccountId }, data: { currentBalance: roundMoney(Number(bankAccount.currentBalance) + appliedAmount) } });
           await tx.bankTransaction.create({
-            data: { companyId, bankAccountId: payment.bankAccountId, type: "DEPOSIT", amount: appliedAmount, description: `Cobro factura #${invoice.invoiceNumber}`, reference: payment.reference, transactionDate: payment.paymentDate }
+            data: { companyId, bankAccountId: payment.bankAccountId, type: "DEPOSIT", amount: appliedAmount, description: `Cobro factura #${invoice.invoiceNumber}`, reference: payment.reference, sourceType: "INVOICE_PAYMENT", sourceId: created.id, sourceNumber: invoice.invoiceNumber, transactionDate: payment.paymentDate }
           });
         }
 
@@ -283,7 +277,7 @@ export const createInvoicePaymentBreakdown = async (req, res, next) => {
           }
           await tx.cashBox.update({ where: { id: payment.cashBoxId }, data: { currentBalance: roundMoney(Number(cashBox.currentBalance) + appliedAmount) } });
           await tx.cashTransaction.create({
-            data: { companyId, cashBoxId: payment.cashBoxId, type: "CASH_IN", amount: appliedAmount, description: `Cobro factura #${invoice.invoiceNumber}`, reference: payment.reference, transactionDate: payment.paymentDate }
+            data: { companyId, cashBoxId: payment.cashBoxId, type: "CASH_IN", amount: appliedAmount, description: `Cobro factura #${invoice.invoiceNumber}`, reference: payment.reference, sourceType: "INVOICE_PAYMENT", sourceId: created.id, sourceNumber: invoice.invoiceNumber, transactionDate: payment.paymentDate }
           });
         }
 
@@ -303,22 +297,20 @@ export const createInvoicePaymentBreakdown = async (req, res, next) => {
         }
       }
 
-      const applied = roundMoney(Number(invoice.balance) - remaining);
+      const applied = breakdown.applied;
       if (applied <= 0) {
         const error = new Error("No se aplico ningun monto a la factura");
         error.status = 400;
         throw error;
       }
-      const nextPaidAmount = roundMoney(Number(invoice.paidAmount) + applied);
-      const nextBalance = roundMoney(Number(invoice.total) - nextPaidAmount);
-      const nextStatus = nextBalance <= 0 ? "PAID" : "PARTIAL";
+      const { nextPaidAmount, nextBalance, nextStatus } = calculatePaymentState(invoice, applied);
       const updatedInvoice = await tx.invoice.update({
         where: { id: invoiceId },
         data: { paidAmount: nextPaidAmount, balance: nextBalance, status: nextStatus },
         include: { client: { select: { id: true, name: true, rnc: true } }, payments: { orderBy: { paymentDate: "desc" } } }
       });
 
-      return { payments: createdPayments, invoice: updatedInvoice, received, applied, change: roundMoney(Math.max(received - applied, 0)), loyaltyReward };
+      return { payments: createdPayments, invoice: updatedInvoice, received, applied, change: breakdown.change, loyaltyReward };
     }, { isolationLevel: "Serializable" });
 
     res.status(201).json(result);

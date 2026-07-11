@@ -3,15 +3,29 @@
 @tailwind utilities;
 
 :root {
-  --color-accent: 15 139 141;
+  --color-accent: 95 124 99;
+  --color-primary: #5f7c63;
+  --color-primary-dark: #3f5f46;
+  --color-secondary: #c46a4a;
+  --app-bg: #f7f3ec;
+  --card-bg: #fffcf7;
+  --border-soft: #e6ded4;
+  --text-main: #1f2933;
+  --text-muted: #6b625a;
 }
 
 html {
-  background: #f8fafc;
+  background: var(--app-bg);
 }
 
 html.dark {
-  background: #020617;
+  --color-accent: 231 166 138;
+  --app-bg: #171411;
+  --card-bg: #25201b;
+  --border-soft: #3a312a;
+  --text-main: #f7f3ec;
+  --text-muted: #c7bcaf;
+  background: var(--app-bg);
 }
 
 * {
@@ -21,19 +35,23 @@ html.dark {
 body {
   margin: 0;
   min-width: 320px;
-  background: #f8fafc;
-  color: #17202a;
+  background:
+    radial-gradient(circle at top left, rgba(231, 166, 138, 0.16), transparent 28rem),
+    linear-gradient(180deg, #faf7f2 0%, #f7f3ec 46%, #f5efe7 100%);
+  color: var(--text-main);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   transition: background-color 200ms ease, color 200ms ease;
 }
 
 .dark body {
-  background: #020617;
-  color: #f1f5f9;
+  background:
+    radial-gradient(circle at top left, rgba(196, 106, 74, 0.12), transparent 28rem),
+    linear-gradient(180deg, #1e1a16 0%, #171411 52%, #13100d 100%);
+  color: var(--text-main);
 }
 
 ::selection {
-  background: rgba(20, 184, 166, 0.18);
+  background: rgba(95, 124, 99, 0.22);
 }
 
 button,
@@ -45,7 +63,7 @@ textarea {
 
 .table-scroll {
   scrollbar-width: thin;
-  scrollbar-color: #94a3b8 transparent;
+  scrollbar-color: #c7b9aa transparent;
 }
 
 .table-scroll::-webkit-scrollbar {
@@ -54,75 +72,85 @@ textarea {
 }
 
 .table-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #d8cbbd;
   border-radius: 999px;
 }
 
 .dark .table-scroll {
-  scrollbar-color: #475569 transparent;
+  scrollbar-color: #5f5146 transparent;
 }
 
 .dark .table-scroll::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #5f5146;
 }
 
 :focus-visible {
-  outline: 2px solid rgba(20, 184, 166, 0.55);
+  outline: 2px solid rgba(95, 124, 99, 0.55);
   outline-offset: 2px;
 }
 
 .dark [class~="bg-white"],
 .dark [class~="bg-white/90"] {
-  background-color: rgb(15 23 42 / var(--tw-bg-opacity, 1));
+  background-color: rgb(37 32 27 / var(--tw-bg-opacity, 1));
 }
 
 .dark [class~="bg-slate-100"],
 .dark [class~="bg-slate-50"],
 .dark [class~="bg-slate-50/70"],
 .dark [class~="bg-slate-50/80"] {
-  background-color: rgb(30 41 59 / var(--tw-bg-opacity, 1));
+  background-color: rgb(30 26 22 / var(--tw-bg-opacity, 1));
 }
 
 .dark [class~="border-slate-100"],
 .dark [class~="border-slate-200"],
 .dark [class~="border-slate-300"] {
-  border-color: rgb(51 65 85 / var(--tw-border-opacity, 1));
+  border-color: rgb(58 49 42 / var(--tw-border-opacity, 1));
 }
 
 .dark [class~="divide-slate-100"] > :not([hidden]) ~ :not([hidden]),
 .dark [class~="divide-slate-200"] > :not([hidden]) ~ :not([hidden]) {
-  border-color: rgb(51 65 85 / var(--tw-divide-opacity, 1));
+  border-color: rgb(58 49 42 / var(--tw-divide-opacity, 1));
 }
 
 .dark [class~="text-slate-950"],
 .dark [class~="text-slate-900"],
 .dark [class~="text-slate-800"],
 .dark [class~="text-slate-700"] {
-  color: rgb(241 245 249 / var(--tw-text-opacity, 1));
+  color: rgb(247 243 236 / var(--tw-text-opacity, 1));
 }
 
 .dark [class~="text-slate-600"],
 .dark [class~="text-slate-500"],
 .dark [class~="text-slate-400"] {
-  color: rgb(148 163 184 / var(--tw-text-opacity, 1));
+  color: rgb(199 188 175 / var(--tw-text-opacity, 1));
 }
 
 .dark input,
 .dark select,
 .dark textarea {
-  background-color: #020617;
-  color: #f1f5f9;
-  border-color: #334155;
+  background-color: #1e1a16;
+  color: #f7f3ec;
+  border-color: #3a312a;
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #64748b;
+  color: #8d8074;
 }
 
 .dark option {
-  background-color: #020617;
-  color: #f1f5f9;
+  background-color: #1e1a16;
+  color: #f7f3ec;
+}
+
+@layer components {
+  .warm-card {
+    @apply rounded-2xl border border-warm-400/80 bg-warm-50/95 shadow-soft shadow-stone-900/5 transition-colors duration-200 dark:border-warm-800 dark:bg-warm-900/95 dark:shadow-black/20;
+  }
+
+  .warm-panel {
+    @apply rounded-2xl border border-warm-400/80 bg-white/80 shadow-soft shadow-stone-900/5 backdrop-blur dark:border-warm-800 dark:bg-warm-900/80;
+  }
 }
 
 @media print {

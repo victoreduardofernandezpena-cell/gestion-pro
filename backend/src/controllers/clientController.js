@@ -2,6 +2,7 @@ import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
 
 const clientSelect = {
   id: true,
@@ -18,22 +19,23 @@ export const listClients = async (req, res, next) => {
   try {
     const search = req.query.search?.trim();
     const companyId = requireCompanyId(req);
-    const clients = await prisma.client.findMany({
-      where: {
-        companyId,
-        ...(search
-          ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { rnc: { contains: search, mode: "insensitive" } },
-              { phone: { contains: search, mode: "insensitive" } }
-            ]
-          }
-          : {})
-      },
+    const where = {
+      companyId,
+      ...(search
+        ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { rnc: { contains: search, mode: "insensitive" } },
+            { phone: { contains: search, mode: "insensitive" } }
+          ]
+        }
+        : {})
+    };
+    const clients = await findManyMaybePaginated(prisma.client, {
+      where,
       select: clientSelect,
       orderBy: { createdAt: "desc" }
-    });
+    }, req.query);
 
     res.json(clients);
   } catch (error) {

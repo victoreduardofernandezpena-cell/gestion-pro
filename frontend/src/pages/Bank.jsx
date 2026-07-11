@@ -8,6 +8,7 @@ import SummaryCard from "../components/SummaryCard";
 import { createBankAccount, deleteBankAccount, getBankAccounts, transferBank, updateBankAccount } from "../services/bankService";
 import { getErrorMessage } from "../utils/errors";
 import { money } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const emptyAccount = { name: "", bankName: "", accountNumber: "", currency: "DOP", initialBalance: 0 };
 const emptyTransfer = { fromBankAccountId: "", toBankAccountId: "", amount: "", description: "", reference: "", transactionDate: new Date().toISOString().slice(0, 10) };
@@ -21,12 +22,16 @@ export default function Bank() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
     try {
-      const data = await getBankAccounts();
+      const result = await getBankAccounts({ page, limit: pagination.limit });
+      const normalized = normalizePaginatedResult(result, { ...pagination, page });
+      const data = normalized.rows;
       setAccounts(data);
+      setPagination(normalized.meta);
       setError("");
       if (data[0] && !transfer.fromBankAccountId) setTransfer((current) => ({ ...current, fromBankAccountId: data[0].id, toBankAccountId: data[1]?.id || data[0].id }));
     } catch (err) {
@@ -50,7 +55,7 @@ export default function Bank() {
       else await createBankAccount(form);
       setForm(emptyAccount);
       setEditingId(null);
-      await load();
+      await load(pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible guardar la cuenta bancaria"));
     } finally {
@@ -67,7 +72,7 @@ export default function Bank() {
     if (!confirm("Eliminar o desactivar esta cuenta bancaria?")) return;
     try {
       await deleteBankAccount(id);
-      await load();
+      await load(pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible eliminar o desactivar la cuenta"));
     }
@@ -81,7 +86,7 @@ export default function Bank() {
     try {
       await transferBank({ ...transfer, amount: Number(transfer.amount) });
       setTransfer((current) => ({ ...emptyTransfer, fromBankAccountId: current.fromBankAccountId, toBankAccountId: current.toBankAccountId }));
-      await load();
+      await load(pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible realizar la transferencia"));
     }
@@ -135,7 +140,7 @@ export default function Bank() {
             <button className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Transferir</button>
           </form>
         </div>
-        {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando cuentas bancarias...</div> : <DataTable columns={columns} rows={accounts} minWidth="980px" emptyTitle="No hay cuentas bancarias" emptyDescription="Crea una cuenta bancaria para registrar movimientos." />}
+        {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando cuentas bancarias...</div> : <DataTable columns={columns} rows={accounts} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="No hay cuentas bancarias" emptyDescription="Crea una cuenta bancaria para registrar movimientos." />}
       </section>
     </div>
   );

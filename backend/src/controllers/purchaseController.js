@@ -1,11 +1,13 @@
 import prisma from "../prisma.js";
-import { PAYMENT_METHODS } from "../constants/billing.js";
+import { PAYMENT_METHODS, PURCHASE_STATUSES } from "../constants/billing.js";
 import { parseIdParam } from "../utils/http.js";
 import { sendDocumentPdf } from "../utils/pdfGenerator.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { getDefaultTaxRate, getDocumentSetting } from "../utils/settings.js";
 import { getNextDocumentNumber } from "../utils/numbering.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
+import { calculatePaymentState, roundMoney } from "../utils/financialRules.js";
 
 const purchaseInclude = {
   supplier: { select: { id: true, name: true, rnc: true, phone: true, email: true } },
@@ -23,8 +25,6 @@ const purchaseInclude = {
     orderBy: { paymentDate: "desc" }
   }
 };
-
-const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 
 const getNextPurchaseNumber = async (tx) => {
   const lastPurchase = await tx.purchase.findFirst({
@@ -62,11 +62,22 @@ const validatePurchasePayload = (body) => {
 
 export const listPurchases = async (req, res, next) => {
   try {
-    const purchases = await prisma.purchase.findMany({
-      where: { companyId: requireCompanyId(req) },
+    const status = req.query.status?.toUpperCase();
+    if (status && !PURCHASE_STATUSES.includes(status)) {
+      return res.status(400).json({ message: "Estado de compra invalido" });
+    }
+    const supplier = req.query.supplier?.trim();
+    const text = req.query.text?.trim();
+    const purchases = await findManyMaybePaginated(prisma.purchase, {
+      where: {
+        companyId: requireCompanyId(req),
+        ...(status ? { status } : {}),
+        ...(text ? { purchaseNumber: { contains: text, mode: "insensitive" } } : {}),
+        ...(supplier ? { supplier: { name: { contains: supplier, mode: "insensitive" } } } : {})
+      },
       include: { supplier: { select: { id: true, name: true, rnc: true } } },
       orderBy: { createdAt: "desc" }
-    });
+    }, req.query);
     res.json(purchases);
   } catch (error) {
     next(error);
@@ -313,11 +324,7 @@ export const createPurchasePayment = async (req, res, next) => {
         error.status = 400;
         throw error;
       }
-      if (amount > Number(purchase.balance)) {
-        const error = new Error("El monto no puede ser mayor al balance pendiente");
-        error.status = 400;
-        throw error;
-      }
+      const { nextPaidAmount, nextBalance, nextStatus } = calculatePaymentState(purchase, amount);
 
       let bankTransaction = null;
       if (method === "BANK_TRANSFER") {
@@ -346,6 +353,9 @@ export const createPurchasePayment = async (req, res, next) => {
             amount,
             description: `Pago compra #${purchase.purchaseNumber}`,
             reference,
+            sourceType: "PURCHASE_PAYMENT",
+            sourceId: purchase.id,
+            sourceNumber: purchase.purchaseNumber,
             transactionDate: paymentDate
           }
         });
@@ -374,14 +384,13 @@ export const createPurchasePayment = async (req, res, next) => {
             amount,
             description: `Pago compra #${purchase.purchaseNumber}`,
             reference,
+            sourceType: "PURCHASE_PAYMENT",
+            sourceId: purchase.id,
+            sourceNumber: purchase.purchaseNumber,
             transactionDate: paymentDate
           }
         });
       }
-
-      const nextPaidAmount = roundMoney(Number(purchase.paidAmount) + amount);
-      const nextBalance = roundMoney(Number(purchase.total) - nextPaidAmount);
-      const nextStatus = nextBalance <= 0 ? "PAID" : "PARTIAL";
 
       const payment = await tx.purchasePayment.create({
         data: {

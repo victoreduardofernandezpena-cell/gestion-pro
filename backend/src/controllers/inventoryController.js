@@ -1,11 +1,17 @@
 import prisma from "../prisma.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
 
 export const listInventory = async (req, res, next) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { companyId: requireCompanyId(req) },
+    const search = req.query.search?.trim();
+    const where = {
+      companyId: requireCompanyId(req),
+      ...(search ? { OR: [{ name: { contains: search, mode: "insensitive" } }, { code: { contains: search, mode: "insensitive" } }, { sku: { contains: search, mode: "insensitive" } }] } : {})
+    };
+    const products = await findManyMaybePaginated(prisma.product, {
+      where,
       select: {
         id: true,
         code: true,
@@ -24,14 +30,14 @@ export const listInventory = async (req, res, next) => {
         requiresExpiration: true
       },
       orderBy: { name: "asc" }
-    });
+    }, req.query);
 
-    res.json(
-      products.map((product) => ({
+    const decorate = (rows) => rows.map((product) => ({
         ...product,
         isLowStock: product.stock <= product.minimumStock
-      }))
-    );
+      }));
+    if (Array.isArray(products)) return res.json(decorate(products));
+    res.json({ ...products, data: decorate(products.data) });
   } catch (error) {
     next(error);
   }
@@ -122,7 +128,7 @@ export const listInventoryMovements = async (req, res, next) => {
     const reference = req.query.reference?.trim();
     const startDate = req.query.startDate ? new Date(`${req.query.startDate}T00:00:00.000Z`) : null;
     const endDate = req.query.endDate ? new Date(`${req.query.endDate}T23:59:59.999Z`) : null;
-    const movements = await prisma.inventoryMovement.findMany({
+    const movements = await findManyMaybePaginated(prisma.inventoryMovement, {
       where: {
         companyId,
         ...(warehouseId ? { warehouseId } : {}),
@@ -148,9 +154,8 @@ export const listInventoryMovements = async (req, res, next) => {
         },
         warehouse: { select: { id: true, code: true, name: true } }
       },
-      orderBy: { createdAt: "desc" },
-      take: 100
-    });
+      orderBy: { createdAt: "desc" }
+    }, req.query);
 
     res.json(movements);
   } catch (error) {

@@ -1,5 +1,7 @@
 import axios from "axios";
 
+export const SESSION_CLEARED_EVENT = "gestion-pro-session-cleared";
+
 const normalizeApiUrl = (url) => {
   const baseUrl = (url || "http://localhost:4000/api").replace(/\/$/, "");
   return baseUrl.endsWith("/api") ? baseUrl : `${baseUrl}/api`;
@@ -13,6 +15,7 @@ const clearStoredSession = () => {
   localStorage.removeItem("erp_token");
   localStorage.removeItem("erp_user");
   localStorage.removeItem("erp_company");
+  window.dispatchEvent(new Event(SESSION_CLEARED_EVENT));
 };
 
 api.interceptors.request.use((config) => {

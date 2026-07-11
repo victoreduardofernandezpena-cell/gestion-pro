@@ -1,9 +1,9 @@
 export default function FormField({ label, value, onChange, type = "text", required = false, min, as = "input", children, error, helper, disabled, placeholder, className = "" }) {
-  const controlClass = `mt-1.5 min-h-11 w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm text-slate-900 outline-none transition-colors duration-200 placeholder:text-slate-400 focus:border-accent focus:ring-4 focus:ring-teal-100 disabled:bg-slate-100 disabled:text-slate-500 dark:bg-slate-950 dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:ring-teal-900/40 dark:disabled:bg-slate-900 dark:disabled:text-slate-500 ${error ? "border-rose-300 dark:border-rose-700" : "border-slate-300 dark:border-slate-700"}`;
+  const controlClass = `mt-1.5 min-h-11 w-full rounded-xl border bg-warm-50 px-3.5 py-2.5 text-sm text-ink outline-none transition-colors duration-200 placeholder:text-warm-600/60 focus:border-olive-500 focus:ring-4 focus:ring-olive-500/20 disabled:bg-warm-200 disabled:text-warm-600 dark:bg-warm-950 dark:text-warm-100 dark:placeholder:text-warm-600 dark:focus:ring-terracotta-300/20 dark:disabled:bg-warm-900 dark:disabled:text-warm-600 ${error ? "border-red-300 dark:border-red-700" : "border-warm-500 dark:border-warm-800"}`;
 
   return (
     <label className={`block ${className}`}>
-      <span className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+      <span className="text-sm font-semibold text-warm-700 dark:text-warm-200">
         {label}
         {required && <span className="ml-1 text-accent">*</span>}
       </span>
@@ -16,8 +16,8 @@ export default function FormField({ label, value, onChange, type = "text", requi
       ) : (
         <input value={value} type={type} min={min} onChange={(event) => onChange(event.target.value)} className={controlClass} required={required} disabled={disabled} placeholder={placeholder} />
       )}
-      {helper && !error && <span className="mt-1 block text-xs text-slate-500 dark:text-slate-400">{helper}</span>}
-      {error && <span className="mt-1 block text-xs text-rose-600 dark:text-rose-300">{error}</span>}
+      {helper && !error && <span className="mt-1 block text-xs text-warm-600 dark:text-warm-600">{helper}</span>}
+      {error && <span className="mt-1 block text-xs text-red-600 dark:text-red-300">{error}</span>}
     </label>
   );
 }

@@ -52,37 +52,37 @@ const items = [
 ];
 
 export default function Sidebar({ open, onClose }) {
-  const { user } = useAuth();
+  const { user, company, logout } = useAuth();
   const reduceMotion = useReducedMotion();
   const visibleItems = items.filter((item) => item.roles.includes(user?.role));
 
   return (
     <>
       <div
-        className={`fixed inset-0 z-30 bg-slate-950/40 lg:hidden ${open ? "block" : "hidden"}`}
+        className={`fixed inset-0 z-30 bg-warm-950/45 backdrop-blur-sm lg:hidden ${open ? "block" : "hidden"}`}
         onClick={onClose}
       />
       <aside
-        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-white/10 bg-slate-950 text-white shadow-2xl shadow-slate-950/20 transition-transform lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-72 flex-col border-r border-warm-400/80 bg-warm-50/95 text-ink shadow-2xl shadow-stone-900/10 backdrop-blur-xl transition-transform dark:border-warm-800 dark:bg-warm-900/95 dark:text-warm-100 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none ${
           open ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex h-20 items-center gap-3 border-b border-white/10 bg-white/[0.03] px-5">
-          <div className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-lg font-bold shadow-lg shadow-teal-950/30">GP</div>
+        <div className="flex h-20 items-center gap-3 border-b border-warm-400/80 bg-warm-100/70 px-5 dark:border-warm-800 dark:bg-warm-950/40">
+          <div className="grid h-11 w-11 place-items-center rounded-2xl bg-olive-500 text-lg font-bold text-white shadow-lg shadow-olive-700/20">GP</div>
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.2em] text-white/45">ERP</p>
-            <p className="font-semibold">Gestion Pro</p>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-warm-700 dark:text-warm-600">ERP</p>
+            <p className="font-semibold text-ink dark:text-warm-100">Gestion Pro</p>
           </div>
         </div>
 
-        <div className="border-b border-white/10 px-4 py-4">
-          <div className="flex items-center gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">
-            <div className="grid h-10 w-10 place-items-center rounded-full bg-white/10">
+        <div className="border-b border-warm-400/80 px-4 py-4 dark:border-warm-800">
+          <div className="flex items-center gap-3 rounded-2xl bg-white/70 p-3 ring-1 ring-warm-400/80 dark:bg-warm-950/40 dark:ring-warm-800">
+            <div className="grid h-10 w-10 place-items-center rounded-full bg-terracotta-300/20 text-terracotta-500">
               <Lock size={18} />
             </div>
             <div>
-              <p className="text-sm font-semibold">Panel seguro</p>
-              <p className="text-xs text-white/55">Gestion interna</p>
+              <p className="text-sm font-semibold text-ink dark:text-warm-100">{company?.code || "Panel seguro"}</p>
+              <p className="text-xs text-warm-700 dark:text-warm-600">{company?.tradeName || company?.name || "Gestion interna"}</p>
             </div>
           </div>
         </div>
@@ -98,18 +98,27 @@ export default function Sidebar({ open, onClose }) {
                 <motion.span
                   whileHover={reduceMotion ? undefined : { x: 2 }}
                   transition={{ duration: 0.15, ease: "easeOut" }}
-                  className={`relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white/30 ${
-                    isActive ? "bg-white text-slate-950 shadow-lg shadow-black/15" : "text-white/68 hover:bg-white/10 hover:text-white"
+                  className={`relative flex min-h-11 items-center gap-3 rounded-xl px-3 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-olive-500/30 ${
+                    isActive ? "bg-olive-500/10 text-olive-700 shadow-sm ring-1 ring-olive-500/20 dark:bg-olive-500/20 dark:text-olive-500 dark:ring-olive-500/20" : "text-warm-700 hover:bg-warm-100 hover:text-ink dark:text-warm-300 dark:hover:bg-warm-800 dark:hover:text-warm-100"
                   }`}
                 >
-                  {isActive && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-accent" />}
-                  <Icon size={19} className={`shrink-0 ${isActive ? "text-accent" : ""}`} />
+                  {isActive && <span className="absolute left-0 top-1/2 h-6 w-1 -translate-y-1/2 rounded-r-full bg-olive-500" />}
+                  <Icon size={19} className={`shrink-0 ${isActive ? "text-olive-700 dark:text-olive-500" : ""}`} />
                   <span className="truncate">{label}</span>
                 </motion.span>
               )}
             </NavLink>
           ))}
         </nav>
+        <div className="border-t border-warm-400/80 p-4 dark:border-warm-800">
+          <div className="mb-3 rounded-2xl bg-warm-100/70 p-3 dark:bg-warm-950/40">
+            <p className="truncate text-sm font-semibold text-ink dark:text-warm-100">{user?.name || "Usuario"}</p>
+            <p className="text-xs capitalize text-warm-700 dark:text-warm-600">{user?.role || "rol"}</p>
+          </div>
+          <button type="button" onClick={logout} className="w-full rounded-xl border border-warm-500 bg-warm-50 px-3 py-2 text-sm font-semibold text-warm-700 transition hover:bg-warm-100 dark:border-warm-800 dark:bg-warm-900 dark:text-warm-200 dark:hover:bg-warm-800">
+            Cerrar sesion
+          </button>
+        </div>
       </aside>
     </>
   );

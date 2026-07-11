@@ -2,11 +2,11 @@ import clsx from "clsx";
 import { motion, useReducedMotion } from "framer-motion";
 
 const variants = {
-  primary: "bg-accent text-white shadow-sm shadow-teal-900/10 hover:brightness-95 focus-visible:ring-accent/30",
-  secondary: "bg-slate-900 text-white shadow-sm shadow-slate-900/10 hover:bg-slate-800 focus-visible:ring-slate-400/30 dark:bg-slate-100 dark:text-slate-950 dark:hover:bg-white",
-  outline: "border border-slate-300 bg-white text-slate-700 shadow-sm hover:border-slate-400 hover:bg-slate-50 focus-visible:ring-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-800",
-  danger: "border border-rose-200 bg-white text-rose-700 shadow-sm hover:bg-rose-50 focus-visible:ring-rose-200 dark:border-rose-900/70 dark:bg-rose-950/30 dark:text-rose-300 dark:hover:bg-rose-950/50",
-  ghost: "text-slate-600 hover:bg-slate-100 focus-visible:ring-slate-200 dark:text-slate-300 dark:hover:bg-slate-800"
+  primary: "bg-olive-500 text-white shadow-sm shadow-olive-700/10 hover:bg-olive-700 focus-visible:ring-olive-500/30",
+  secondary: "bg-terracotta-500 text-white shadow-sm shadow-terracotta-500/10 hover:brightness-95 focus-visible:ring-terracotta-300/40",
+  outline: "border border-warm-500 bg-warm-50 text-warm-700 shadow-sm hover:border-olive-500/50 hover:bg-warm-100 focus-visible:ring-warm-500/40 dark:border-warm-800 dark:bg-warm-900 dark:text-warm-100 dark:hover:border-terracotta-300/50 dark:hover:bg-warm-800",
+  danger: "border border-red-200 bg-white text-red-700 shadow-sm hover:bg-red-50 focus-visible:ring-red-200 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50",
+  ghost: "text-warm-700 hover:bg-warm-100 focus-visible:ring-warm-400 dark:text-warm-200 dark:hover:bg-warm-800"
 };
 
 const sizes = {
@@ -24,7 +24,7 @@ export default function Button({ children, className, variant = "primary", size 
       disabled={disabled || loading}
       whileTap={reduceMotion ? undefined : { scale: 0.98 }}
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold transition-colors duration-200 focus:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60",
+        "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors duration-200 focus:outline-none focus-visible:ring-4 disabled:cursor-not-allowed disabled:opacity-60",
         variants[variant],
         sizes[size],
         className

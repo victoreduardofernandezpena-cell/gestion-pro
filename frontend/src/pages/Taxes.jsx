@@ -139,8 +139,8 @@ export default function Taxes() {
 
   return (
     <div className="space-y-8">
-      <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white/90 p-5 shadow-soft print:border-0 print:shadow-none dark:border-slate-800/80 dark:bg-slate-900/80 sm:p-6">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-br from-teal-500/12 via-sky-500/8 to-transparent print:hidden" />
+      <div className="relative overflow-hidden rounded-2xl border border-warm-300/80 bg-white/90 p-5 shadow-warm print:border-0 print:shadow-none dark:border-warm-800/80 dark:bg-warm-900/85 sm:p-6">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-40 bg-gradient-to-br from-olive-500/10 via-terracotta-300/10 to-transparent print:hidden" />
         <PageHeader
           className="relative"
           eyebrow="Panel fiscal"

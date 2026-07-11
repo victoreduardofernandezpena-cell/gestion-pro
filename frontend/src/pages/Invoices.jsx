@@ -9,12 +9,14 @@ import EmptyState from "../components/EmptyState";
 import FormField from "../components/FormField";
 import { ActionBar, FormCard, FormGrid, FormPageLayout, FormSection, ModernCheckbox } from "../components/FormLayout";
 import InvoicePaymentBreakdownModal from "../components/invoices/InvoicePaymentBreakdownModal";
+import PaginationControls from "../components/PaginationControls";
 import { getBankAccounts } from "../services/bankService";
 import { getCashBoxes } from "../services/cashBoxService";
 import { createInvoicePaymentBreakdown, duplicateInvoice, getInvoices } from "../services/invoiceService";
 import { downloadInvoicePdf } from "../services/reportService";
 import { getErrorMessage } from "../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const statusOptions = [
   { label: "Todos", value: "" },
@@ -73,12 +75,16 @@ export default function Invoices() {
   const [confirmDuplicate, setConfirmDuplicate] = useState(null);
   const [bankAccounts, setBankAccounts] = useState([]);
   const [cashBoxes, setCashBoxes] = useState([]);
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const loadInvoices = async (filters = search) => {
+  const loadInvoices = async (filters = search, page = pagination.page) => {
     setLoading(true);
     try {
-      const rows = await getInvoices(buildInvoiceParams(filters));
+      const result = await getInvoices({ ...buildInvoiceParams(filters), page, limit: pagination.limit });
+      const normalized = normalizePaginatedResult(result, { ...pagination, page });
+      const rows = normalized.rows;
       setInvoices(rows);
+      setPagination(normalized.meta);
       setSelectedIds((current) => current.filter((id) => rows.some((invoice) => invoice.id === id)));
       setError("");
     } catch (err) {
@@ -107,12 +113,12 @@ export default function Invoices() {
 
   const submitSearch = (event) => {
     event.preventDefault();
-    loadInvoices(search);
+    loadInvoices(search, 1);
   };
 
   const clearFilters = () => {
     setSearch(emptySearch);
-    loadInvoices(emptySearch);
+    loadInvoices(emptySearch, 1);
   };
 
   const toggleSelected = (id) => {
@@ -144,7 +150,7 @@ export default function Invoices() {
       const duplicated = await duplicateInvoice(invoice.id);
       toast.success(`Factura duplicada: ${duplicated.invoiceNumber}`);
       setConfirmDuplicate(null);
-      await loadInvoices(search);
+      await loadInvoices(search, pagination.page);
     } catch (err) {
       const message = getErrorMessage(err, "No fue posible duplicar la factura");
       setError(message);
@@ -157,7 +163,7 @@ export default function Invoices() {
       const result = await createInvoicePaymentBreakdown(paymentInvoice.id, payments);
       toast.success(result.change > 0 ? `Pago registrado. Devuelta: ${money.format(Number(result.change))}` : "Pago registrado");
       setPaymentInvoice(null);
-      await loadInvoices(search);
+      await loadInvoices(search, pagination.page);
     } catch (err) {
       const message = getErrorMessage(err, "No fue posible registrar el pago multiple");
       setError(message);
@@ -306,6 +312,7 @@ export default function Invoices() {
             </tbody>
           </table>
         </div>
+        <PaginationControls meta={pagination} onPageChange={(page) => loadInvoices(search, page)} loading={loading} />
       </FormCard>
 
       <InvoicePaymentBreakdownModal invoice={paymentInvoice} bankAccounts={bankAccounts} cashBoxes={cashBoxes} onClose={() => setPaymentInvoice(null)} onSave={savePaymentBreakdown} />

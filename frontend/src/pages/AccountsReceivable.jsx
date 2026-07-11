@@ -7,6 +7,7 @@ import SummaryCard from "../components/SummaryCard";
 import { getAccountsReceivable, getAccountsReceivableSummary } from "../services/accountsReceivableService";
 import { getErrorMessage } from "../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 export default function AccountsReceivable() {
   const navigate = useNavigate();
@@ -14,15 +15,23 @@ export default function AccountsReceivable() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  useEffect(() => {
-    Promise.all([getAccountsReceivable(), getAccountsReceivableSummary()])
+  const load = async (page = pagination.page) => {
+    setLoading(true);
+    Promise.all([getAccountsReceivable({ page, limit: pagination.limit }), getAccountsReceivableSummary()])
       .then(([receivableRows, summaryData]) => {
-        setRows(receivableRows);
+        const normalized = normalizePaginatedResult(receivableRows, { ...pagination, page });
+        setRows(normalized.rows);
+        setPagination(normalized.meta);
         setSummary(summaryData);
       })
       .catch((err) => setError(getErrorMessage(err, "No fue posible cargar cuentas por cobrar")))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    load(1);
   }, []);
 
   const columns = useMemo(
@@ -75,7 +84,7 @@ export default function AccountsReceivable() {
         </section>
       )}
 
-      <DataTable columns={columns} rows={rows} minWidth="980px" emptyTitle="Sin cuentas por cobrar" emptyDescription="Las facturas pagadas no aparecen en esta vista." />
+      <DataTable columns={columns} rows={rows} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin cuentas por cobrar" emptyDescription="Las facturas pagadas no aparecen en esta vista." />
     </div>
   );
 }

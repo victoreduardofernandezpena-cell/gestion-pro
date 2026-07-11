@@ -9,9 +9,9 @@ export default function MainLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 transition-colors duration-200 dark:bg-slate-950 dark:text-slate-100 lg:flex">
+    <div className="min-h-screen bg-warm-200 text-ink transition-colors duration-200 dark:bg-warm-950 dark:text-warm-100 lg:flex">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="min-w-0 flex-1 bg-[radial-gradient(circle_at_top_right,rgba(20,184,166,0.08),transparent_32rem)] dark:bg-[radial-gradient(circle_at_top_right,rgba(20,184,166,0.08),transparent_30rem)]">
+      <div className="min-w-0 flex-1 bg-[radial-gradient(circle_at_top_right,rgba(196,106,74,0.10),transparent_34rem)] dark:bg-[radial-gradient(circle_at_top_right,rgba(231,166,138,0.10),transparent_30rem)]">
         <Navbar onMenu={() => setSidebarOpen(true)} />
         <main className="mx-auto w-full max-w-[1680px] px-4 py-6 sm:px-6 lg:px-8 xl:py-8">
           <PageTransition key={location.pathname}>

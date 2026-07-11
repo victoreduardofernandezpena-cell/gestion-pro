@@ -7,6 +7,7 @@ import { getProducts } from "../../services/productService";
 import { exportReport, getReport } from "../../services/reportService";
 import { getErrorMessage } from "../../utils/errors";
 import { formatDate, money } from "../../utils/format";
+import { DEFAULT_PAGINATION } from "../../utils/pagination";
 import { FilterShell, LoadingBox, ReportActions, ReportError, ReportHeader } from "./reportUi";
 
 export default function InventoryReport() {
@@ -16,12 +17,14 @@ export default function InventoryReport() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
     try {
-      const [report, productsData] = await Promise.all([getReport("inventory", filters), getProducts()]);
+      const [report, productsData] = await Promise.all([getReport("inventory", { ...filters, page, limit: pagination.limit }), getProducts()]);
       setData(report);
+      setPagination(report.meta || { ...pagination, page });
       setProducts(productsData);
       setError("");
     } catch (err) {
@@ -63,7 +66,7 @@ export default function InventoryReport() {
         <ReportActions exporting={exporting} onExcel={() => download("excel")} onPdf={() => download("pdf")} onPrint={() => window.print()} />
       </ReportHeader>
       <ReportError>{error}</ReportError>
-      <FilterShell onSubmit={(event) => { event.preventDefault(); load(); }}>
+      <FilterShell onSubmit={(event) => { event.preventDefault(); load(1); }}>
         <FormField label="Producto" as="select" value={filters.productId} onChange={(value) => setFilters({ ...filters, productId: value })}>
           <option value="">Todos</option>{products.map((product) => <option key={product.id} value={product.id}>{product.code} - {product.name}</option>)}
         </FormField>
@@ -81,7 +84,7 @@ export default function InventoryReport() {
         <SummaryCard title="Valor inventario" value={money.format(Number(data.totalStockValue || 0))} icon={WalletCards} tone="green" />
         <SummaryCard title="Stock bajo" value={data.lowStockCount || 0} icon={AlertTriangle} tone="amber" />
       </section>
-      <section className="space-y-3"><h2 className="text-lg font-semibold">Productos</h2><DataTable columns={productColumns} rows={data.products || []} minWidth="980px" emptyTitle="Sin productos" /></section>
+      <section className="space-y-3"><h2 className="text-lg font-semibold">Productos</h2><DataTable columns={productColumns} rows={data.products || []} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin productos" /></section>
       <section className="space-y-3"><h2 className="text-lg font-semibold">Movimientos</h2><DataTable columns={movementColumns} rows={data.movements || []} minWidth="900px" emptyTitle="Sin movimientos" /></section>
     </div>
   );

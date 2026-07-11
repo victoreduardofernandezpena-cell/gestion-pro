@@ -11,15 +11,15 @@ export default function RecentActivityList({ title, items = [], getTitle, getMet
       <SectionHeader title={title} description="Ultimos movimientos registrados" />
       <motion.div initial={reduceMotion ? false : "hidden"} animate="show" variants={staggerContainer} className="mt-4 space-y-3">
         {items.length === 0 ? (
-          <p className="rounded-xl bg-slate-50 p-4 text-sm text-slate-500 dark:bg-slate-800/80 dark:text-slate-400">Sin actividad reciente.</p>
+          <p className="rounded-xl bg-warm-100 p-4 text-sm text-warm-600 dark:bg-warm-950/55 dark:text-warm-400">Sin actividad reciente.</p>
         ) : (
           items.map((item) => (
-            <motion.div key={item.id} variants={fadeInUp} className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-3 transition-colors hover:bg-white dark:border-slate-800 dark:bg-slate-950/30 dark:hover:bg-slate-800/60">
+            <motion.div key={item.id} variants={fadeInUp} className="flex items-start justify-between gap-3 rounded-xl border border-warm-200/80 bg-warm-100/60 p-3 transition-colors hover:border-olive-500/25 hover:bg-white dark:border-warm-800 dark:bg-warm-950/35 dark:hover:bg-warm-800/60">
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{getTitle(item)}</p>
-                <p className="text-xs text-slate-500 dark:text-slate-400">{getMeta ? getMeta(item) : formatDate(item.createdAt)}</p>
+                <p className="truncate text-sm font-semibold text-warm-900 dark:text-warm-100">{getTitle(item)}</p>
+                <p className="text-xs text-warm-600 dark:text-warm-400">{getMeta ? getMeta(item) : formatDate(item.createdAt)}</p>
               </div>
-              {getAmount && <span className="shrink-0 text-sm font-semibold text-slate-700 dark:text-slate-300">{money.format(Number(getAmount(item)))}</span>}
+              {getAmount && <span className="shrink-0 text-sm font-semibold text-warm-800 dark:text-warm-200">{money.format(Number(getAmount(item)))}</span>}
             </motion.div>
           ))
         )}

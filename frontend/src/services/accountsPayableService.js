@@ -1,7 +1,7 @@
 import api from "./api";
 
-export const getAccountsPayable = async () => {
-  const { data } = await api.get("/accounts-payable");
+export const getAccountsPayable = async (params = {}) => {
+  const { data } = await api.get("/accounts-payable", { params });
   return data;
 };
 

@@ -1,89 +1,93 @@
+import { lazy, Suspense } from "react";
 import { Route, Routes } from "react-router-dom";
 import ProtectedRoute from "../components/ProtectedRoute";
+import PageLoader from "../components/PageLoader";
 import MainLayout from "../layouts/MainLayout";
-import Accounting from "../pages/Accounting";
-import AccountingAccounts from "../pages/AccountingAccounts";
-import AccountingEntries from "../pages/AccountingEntries";
-import AccountingEntryDetail from "../pages/AccountingEntryDetail";
-import AccountingReports from "../pages/AccountingReports";
-import Clients from "../pages/Clients";
-import AccountsReceivable from "../pages/AccountsReceivable";
-import AccountsPayable from "../pages/AccountsPayable";
-import AuditLogs from "../pages/AuditLogs";
-import CreateInvoice from "../pages/CreateInvoice";
-import CreateAccountingEntry from "../pages/CreateAccountingEntry";
-import CreatePurchase from "../pages/CreatePurchase";
-import Dashboard from "../pages/Dashboard";
-import Bank from "../pages/Bank";
-import BankAccountDetail from "../pages/BankAccountDetail";
-import Brands from "../pages/Brands";
-import CashBox from "../pages/CashBox";
-import CashBoxDetail from "../pages/CashBoxDetail";
-import Expenses from "../pages/Expenses";
-import Finances from "../pages/Finances";
-import ForcedPasswordChange from "../pages/ForcedPasswordChange";
-import HumanResources from "../pages/HumanResources";
-import Attendance from "../pages/hr/Attendance";
-import CreatePayroll from "../pages/hr/CreatePayroll";
-import Departments from "../pages/hr/Departments";
-import EmployeeDetail from "../pages/hr/EmployeeDetail";
-import EmployeePayments from "../pages/hr/EmployeePayments";
-import Employees from "../pages/hr/Employees";
-import HRReports from "../pages/hr/HRReports";
-import Payroll from "../pages/hr/Payroll";
-import PayrollDetail from "../pages/hr/PayrollDetail";
-import Positions from "../pages/hr/Positions";
-import Inventory from "../pages/Inventory";
-import InvoiceDetail from "../pages/InvoiceDetail";
-import Invoices from "../pages/Invoices";
-import Login from "../pages/Login";
-import Loyalty from "../pages/Loyalty";
-import LoyaltyAccountDetail from "../pages/loyalty/LoyaltyAccountDetail";
-import LoyaltyClients from "../pages/loyalty/LoyaltyClients";
-import LoyaltySettings from "../pages/loyalty/LoyaltySettings";
-import LoyaltyTransactions from "../pages/loyalty/LoyaltyTransactions";
-import ModuleInDevelopment from "../pages/ModuleInDevelopment";
-import Products from "../pages/Products";
-import Profile from "../pages/Profile";
-import PurchaseDetail from "../pages/PurchaseDetail";
-import Purchases from "../pages/Purchases";
-import Reports from "../pages/Reports";
-import Backups from "../pages/system/Backups";
-import SystemStatus from "../pages/system/SystemStatus";
-import AccountsPayableReport from "../pages/reports/AccountsPayableReport";
-import AccountsReceivableReport from "../pages/reports/AccountsReceivableReport";
-import AccountingReport from "../pages/reports/AccountingReport";
-import BankReport from "../pages/reports/BankReport";
-import CashBoxReport from "../pages/reports/CashBoxReport";
-import ExpensesReport from "../pages/reports/ExpensesReport";
-import InventoryReport from "../pages/reports/InventoryReport";
-import PurchasesReport from "../pages/reports/PurchasesReport";
-import SalesReport from "../pages/reports/SalesReport";
-import Security from "../pages/Security";
-import Settings from "../pages/Settings";
-import ServerError from "../pages/ServerError";
-import System from "../pages/System";
-import CategorySettings from "../pages/settings/CategorySettings";
-import CompanySettings from "../pages/settings/CompanySettings";
-import DocumentSettings from "../pages/settings/DocumentSettings";
-import NumberingSettings from "../pages/settings/NumberingSettings";
-import TaxSettings from "../pages/settings/TaxSettings";
-import Suppliers from "../pages/Suppliers";
-import Taxes from "../pages/Taxes";
-import NotFound from "../pages/NotFound";
-import Unauthorized from "../pages/Unauthorized";
-import Users from "../pages/Users";
-import Warehouses from "../pages/Warehouses";
+
+const Accounting = lazy(() => import("../pages/Accounting"));
+const AccountingAccounts = lazy(() => import("../pages/AccountingAccounts"));
+const AccountingEntries = lazy(() => import("../pages/AccountingEntries"));
+const AccountingEntryDetail = lazy(() => import("../pages/AccountingEntryDetail"));
+const AccountingReports = lazy(() => import("../pages/AccountingReports"));
+const Clients = lazy(() => import("../pages/Clients"));
+const AccountsReceivable = lazy(() => import("../pages/AccountsReceivable"));
+const AccountsPayable = lazy(() => import("../pages/AccountsPayable"));
+const AuditLogs = lazy(() => import("../pages/AuditLogs"));
+const CreateInvoice = lazy(() => import("../pages/CreateInvoice"));
+const CreateAccountingEntry = lazy(() => import("../pages/CreateAccountingEntry"));
+const CreatePurchase = lazy(() => import("../pages/CreatePurchase"));
+const Dashboard = lazy(() => import("../pages/Dashboard"));
+const Bank = lazy(() => import("../pages/Bank"));
+const BankAccountDetail = lazy(() => import("../pages/BankAccountDetail"));
+const Brands = lazy(() => import("../pages/Brands"));
+const CashBox = lazy(() => import("../pages/CashBox"));
+const CashBoxDetail = lazy(() => import("../pages/CashBoxDetail"));
+const Expenses = lazy(() => import("../pages/Expenses"));
+const Finances = lazy(() => import("../pages/Finances"));
+const ForcedPasswordChange = lazy(() => import("../pages/ForcedPasswordChange"));
+const HumanResources = lazy(() => import("../pages/HumanResources"));
+const Attendance = lazy(() => import("../pages/hr/Attendance"));
+const CreatePayroll = lazy(() => import("../pages/hr/CreatePayroll"));
+const Departments = lazy(() => import("../pages/hr/Departments"));
+const EmployeeDetail = lazy(() => import("../pages/hr/EmployeeDetail"));
+const EmployeePayments = lazy(() => import("../pages/hr/EmployeePayments"));
+const Employees = lazy(() => import("../pages/hr/Employees"));
+const HRReports = lazy(() => import("../pages/hr/HRReports"));
+const Payroll = lazy(() => import("../pages/hr/Payroll"));
+const PayrollDetail = lazy(() => import("../pages/hr/PayrollDetail"));
+const Positions = lazy(() => import("../pages/hr/Positions"));
+const Inventory = lazy(() => import("../pages/Inventory"));
+const InvoiceDetail = lazy(() => import("../pages/InvoiceDetail"));
+const Invoices = lazy(() => import("../pages/Invoices"));
+const Login = lazy(() => import("../pages/Login"));
+const Loyalty = lazy(() => import("../pages/Loyalty"));
+const LoyaltyAccountDetail = lazy(() => import("../pages/loyalty/LoyaltyAccountDetail"));
+const LoyaltyClients = lazy(() => import("../pages/loyalty/LoyaltyClients"));
+const LoyaltySettings = lazy(() => import("../pages/loyalty/LoyaltySettings"));
+const LoyaltyTransactions = lazy(() => import("../pages/loyalty/LoyaltyTransactions"));
+const ModuleInDevelopment = lazy(() => import("../pages/ModuleInDevelopment"));
+const Products = lazy(() => import("../pages/Products"));
+const Profile = lazy(() => import("../pages/Profile"));
+const PurchaseDetail = lazy(() => import("../pages/PurchaseDetail"));
+const Purchases = lazy(() => import("../pages/Purchases"));
+const Reports = lazy(() => import("../pages/Reports"));
+const Backups = lazy(() => import("../pages/system/Backups"));
+const SystemStatus = lazy(() => import("../pages/system/SystemStatus"));
+const AccountsPayableReport = lazy(() => import("../pages/reports/AccountsPayableReport"));
+const AccountsReceivableReport = lazy(() => import("../pages/reports/AccountsReceivableReport"));
+const AccountingReport = lazy(() => import("../pages/reports/AccountingReport"));
+const BankReport = lazy(() => import("../pages/reports/BankReport"));
+const CashBoxReport = lazy(() => import("../pages/reports/CashBoxReport"));
+const ExpensesReport = lazy(() => import("../pages/reports/ExpensesReport"));
+const InventoryReport = lazy(() => import("../pages/reports/InventoryReport"));
+const PurchasesReport = lazy(() => import("../pages/reports/PurchasesReport"));
+const SalesReport = lazy(() => import("../pages/reports/SalesReport"));
+const Security = lazy(() => import("../pages/Security"));
+const Settings = lazy(() => import("../pages/Settings"));
+const ServerError = lazy(() => import("../pages/ServerError"));
+const System = lazy(() => import("../pages/System"));
+const CategorySettings = lazy(() => import("../pages/settings/CategorySettings"));
+const CompanySettings = lazy(() => import("../pages/settings/CompanySettings"));
+const DocumentSettings = lazy(() => import("../pages/settings/DocumentSettings"));
+const NumberingSettings = lazy(() => import("../pages/settings/NumberingSettings"));
+const TaxSettings = lazy(() => import("../pages/settings/TaxSettings"));
+const Suppliers = lazy(() => import("../pages/Suppliers"));
+const Taxes = lazy(() => import("../pages/Taxes"));
+const NotFound = lazy(() => import("../pages/NotFound"));
+const Unauthorized = lazy(() => import("../pages/Unauthorized"));
+const Users = lazy(() => import("../pages/Users"));
+const Warehouses = lazy(() => import("../pages/Warehouses"));
 
 const modules = [];
 
 export default function AppRoutes() {
   return (
-    <Routes>
-      <Route path="/login" element={<Login />} />
-      <Route element={<ProtectedRoute />}>
-        <Route path="/cambiar-contrasena-obligatorio" element={<ForcedPasswordChange />} />
-        <Route element={<MainLayout />}>
+    <Suspense fallback={<PageLoader message="Cargando modulo..." />}>
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/cambiar-contrasena-obligatorio" element={<ForcedPasswordChange />} />
+          <Route element={<MainLayout />}>
           <Route index element={<Dashboard />} />
           <Route path="perfil" element={<Profile />} />
           <Route path="unauthorized" element={<Unauthorized />} />
@@ -188,8 +192,9 @@ export default function AppRoutes() {
           ))}
           <Route path="not-found" element={<NotFound />} />
           <Route path="*" element={<NotFound />} />
+          </Route>
         </Route>
-      </Route>
-    </Routes>
+      </Routes>
+    </Suspense>
   );
 }

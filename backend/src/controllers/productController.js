@@ -2,6 +2,7 @@ import prisma from "../prisma.js";
 import { parseIdParam, sendDeleted } from "../utils/http.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
 
 const productSelect = {
   id: true,
@@ -73,24 +74,25 @@ export const listProducts = async (req, res, next) => {
   try {
     const search = req.query.search?.trim();
     const companyId = requireCompanyId(req);
-    const products = await prisma.product.findMany({
-      where: {
-        companyId,
-        ...(search
-          ? {
-            OR: [
-              { name: { contains: search, mode: "insensitive" } },
-              { code: { contains: search, mode: "insensitive" } },
-              { sku: { contains: search, mode: "insensitive" } },
-              { reference: { contains: search, mode: "insensitive" } },
-              { barcode: { contains: search, mode: "insensitive" } }
-            ]
-          }
-          : {})
-      },
+    const where = {
+      companyId,
+      ...(search
+        ? {
+          OR: [
+            { name: { contains: search, mode: "insensitive" } },
+            { code: { contains: search, mode: "insensitive" } },
+            { sku: { contains: search, mode: "insensitive" } },
+            { reference: { contains: search, mode: "insensitive" } },
+            { barcode: { contains: search, mode: "insensitive" } }
+          ]
+        }
+        : {})
+    };
+    const products = await findManyMaybePaginated(prisma.product, {
+      where,
       select: productSelect,
       orderBy: { createdAt: "desc" }
-    });
+    }, req.query);
 
     res.json(products);
   } catch (error) {

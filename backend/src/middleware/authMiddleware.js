@@ -1,6 +1,17 @@
 import jwt from "jsonwebtoken";
 import prisma from "../prisma.js";
 
+export const forcedPasswordAllowedPaths = ["/api/auth/profile", "/api/auth/change-forced-password"];
+
+export const isForcedPasswordAllowedPath = (path = "") => {
+  const normalizedPath = path.split("?")[0].replace(/\/$/, "");
+  return forcedPasswordAllowedPaths.includes(normalizedPath);
+};
+
+export const shouldBlockForcedPasswordChange = (user, path) => {
+  return Boolean(user?.mustChangePassword && !isForcedPasswordAllowedPath(path));
+};
+
 export const authenticate = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
@@ -57,6 +68,11 @@ export const authenticate = async (req, res, next) => {
         code: userCompany.company.code
       }
     };
+
+    if (shouldBlockForcedPasswordChange(req.user, req.originalUrl || req.path)) {
+      return res.status(403).json({ message: "Debes cambiar tu contrasena antes de continuar" });
+    }
+
     next();
   } catch (error) {
     return res.status(401).json({ message: "Token invalido o expirado" });

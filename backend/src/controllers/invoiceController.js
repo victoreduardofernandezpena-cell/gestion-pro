@@ -7,6 +7,7 @@ import { getDefaultTaxRate, getDocumentSetting } from "../utils/settings.js";
 import { getNextDocumentNumber } from "../utils/numbering.js";
 import { getActiveLoyaltySetting, roundMoney } from "../utils/loyaltyCalculator.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
 
 const invoiceInclude = {
   client: { select: { id: true, name: true, rnc: true, phone: true, email: true } },
@@ -81,55 +82,56 @@ export const listInvoices = async (req, res, next) => {
       return res.status(400).json({ message: "ID de factura invalido" });
     }
 
-    const invoices = await prisma.invoice.findMany({
-      where: {
-        companyId: requireCompanyId(req),
-        ...(id ? { id } : {}),
-        ...(status ? { status } : {}),
-        ...(startDate || endDate ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
-        ...(text
-          ? {
+    const where = {
+      companyId: requireCompanyId(req),
+      ...(id ? { id } : {}),
+      ...(status ? { status } : {}),
+      ...(startDate || endDate ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
+      ...(text
+        ? {
+          OR: [
+            { invoiceNumber: { contains: text, mode: "insensitive" } },
+            { notes: { contains: text, mode: "insensitive" } }
+          ]
+        }
+        : {}),
+      ...(client
+        ? {
+          client: {
             OR: [
-              { invoiceNumber: { contains: text, mode: "insensitive" } },
-              { notes: { contains: text, mode: "insensitive" } }
+              { name: { contains: client, mode: "insensitive" } },
+              { rnc: { contains: client, mode: "insensitive" } },
+              { phone: { contains: client, mode: "insensitive" } }
             ]
           }
-          : {}),
-        ...(client
-          ? {
-            client: {
-              OR: [
-                { name: { contains: client, mode: "insensitive" } },
-                { rnc: { contains: client, mode: "insensitive" } },
-                { phone: { contains: client, mode: "insensitive" } }
-              ]
-            }
-          }
-          : {}),
-        ...(item
-          ? {
-            items: {
-              some: {
-                product: {
-                  OR: [
-                    { name: { contains: item, mode: "insensitive" } },
-                    { code: { contains: item, mode: "insensitive" } },
-                    { sku: { contains: item, mode: "insensitive" } },
-                    { reference: { contains: item, mode: "insensitive" } },
-                    { barcode: { contains: item, mode: "insensitive" } }
-                  ]
-                }
+        }
+        : {}),
+      ...(item
+        ? {
+          items: {
+            some: {
+              product: {
+                OR: [
+                  { name: { contains: item, mode: "insensitive" } },
+                  { code: { contains: item, mode: "insensitive" } },
+                  { sku: { contains: item, mode: "insensitive" } },
+                  { reference: { contains: item, mode: "insensitive" } },
+                  { barcode: { contains: item, mode: "insensitive" } }
+                ]
               }
             }
           }
-          : {})
-      },
+        }
+        : {})
+    };
+    const invoices = await findManyMaybePaginated(prisma.invoice, {
+      where,
       include: {
         client: { select: { id: true, name: true, rnc: true } },
         items: { include: { product: { select: { id: true, code: true, name: true } } } }
       },
       orderBy: { createdAt: "desc" }
-    });
+    }, req.query);
 
     res.json(invoices);
   } catch (error) {

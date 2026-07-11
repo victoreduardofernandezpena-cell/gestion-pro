@@ -34,6 +34,7 @@ import taxesRoutes from "./routes/taxesRoutes.js";
 import hrRoutes from "./routes/hrRoutes.js";
 import { notFound } from "./middleware/notFound.js";
 import { errorHandler } from "./middleware/errorHandler.js";
+import { buildAllowedOrigins, isCorsOriginAllowed } from "./utils/cors.js";
 
 dotenv.config();
 
@@ -42,22 +43,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const uploadsDir = path.resolve(__dirname, "../uploads");
 fs.mkdirSync(path.join(uploadsDir, "logos"), { recursive: true });
-const configuredOrigins = [process.env.FRONTEND_URL, process.env.FRONTEND_URLS]
-  .filter(Boolean)
-  .flatMap((value) => value.split(","))
-  .map((value) => value.trim().replace(/\/$/, ""))
-  .filter(Boolean);
-const allowedOrigins = [
-  ...configuredOrigins,
-  "http://localhost:5173",
-  "http://127.0.0.1:5173"
-];
+const allowedOrigins = buildAllowedOrigins();
 
 app.use(
   cors({
     origin(origin, callback) {
-      const normalizedOrigin = origin?.replace(/\/$/, "");
-      if (!origin || allowedOrigins.includes(normalizedOrigin)) {
+      if (isCorsOriginAllowed(origin, allowedOrigins)) {
         return callback(null, true);
       }
       const error = new Error("Origen no permitido por CORS");
@@ -68,7 +59,7 @@ app.use(
   })
 );
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
-app.use(express.json());
+app.use(express.json({ limit: process.env.JSON_BODY_LIMIT || "1mb" }));
 app.use("/uploads", express.static(uploadsDir));
 
 app.get("/api/health", (req, res) => {

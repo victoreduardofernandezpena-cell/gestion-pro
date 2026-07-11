@@ -1,15 +1,16 @@
 import prisma from "../prisma.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { findManyMaybePaginated } from "../utils/pagination.js";
 
 export const listAccountsReceivable = async (req, res, next) => {
   try {
-    const invoices = await prisma.invoice.findMany({
+    const invoices = await findManyMaybePaginated(prisma.invoice, {
       where: { companyId: requireCompanyId(req), status: { in: ["PENDING", "PARTIAL"] } },
       include: {
         client: { select: { id: true, name: true, rnc: true, phone: true, email: true } }
       },
       orderBy: { createdAt: "desc" }
-    });
+    }, req.query);
 
     res.json(invoices);
   } catch (error) {

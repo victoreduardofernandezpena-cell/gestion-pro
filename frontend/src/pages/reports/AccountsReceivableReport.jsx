@@ -7,6 +7,7 @@ import { getClients } from "../../services/clientService";
 import { exportReport, getReport } from "../../services/reportService";
 import { getErrorMessage } from "../../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../../utils/format";
+import { DEFAULT_PAGINATION } from "../../utils/pagination";
 import { FilterShell, LoadingBox, ReportActions, ReportError, ReportHeader } from "./reportUi";
 
 export default function AccountsReceivableReport() {
@@ -16,12 +17,14 @@ export default function AccountsReceivableReport() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
     try {
-      const [report, clientsData] = await Promise.all([getReport("accounts-receivable", filters), getClients()]);
+      const [report, clientsData] = await Promise.all([getReport("accounts-receivable", { ...filters, page, limit: pagination.limit }), getClients()]);
       setData(report);
+      setPagination(report.meta || { ...pagination, page });
       setClients(clientsData);
       setError("");
     } catch (err) {
@@ -46,7 +49,7 @@ export default function AccountsReceivableReport() {
     <div className="print-area space-y-6">
       <ReportHeader title="Reporte de Cuentas por Cobrar"><ReportActions exporting={exporting} onExcel={() => download("excel")} onPdf={() => download("pdf")} onPrint={() => window.print()} /></ReportHeader>
       <ReportError>{error}</ReportError>
-      <FilterShell onSubmit={(event) => { event.preventDefault(); load(); }}>
+      <FilterShell onSubmit={(event) => { event.preventDefault(); load(1); }}>
         <FormField label="Desde" type="date" value={filters.startDate} onChange={(value) => setFilters({ ...filters, startDate: value })} />
         <FormField label="Hasta" type="date" value={filters.endDate} onChange={(value) => setFilters({ ...filters, endDate: value })} />
         <FormField label="Cliente" as="select" value={filters.clientId} onChange={(value) => setFilters({ ...filters, clientId: value })}><option value="">Todos</option>{clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</FormField>
@@ -57,7 +60,7 @@ export default function AccountsReceivableReport() {
         <SummaryCard title="Pendientes" value={data.countPending || 0} icon={FileClock} tone="amber" />
         <SummaryCard title="Parciales" value={data.countPartial || 0} icon={FileClock} tone="blue" />
       </section>
-      <DataTable columns={columns} rows={data.invoices || []} minWidth="980px" emptyTitle="Sin cuentas por cobrar" />
+      <DataTable columns={columns} rows={data.invoices || []} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin cuentas por cobrar" />
     </div>
   );
 }

@@ -7,6 +7,7 @@ import { getClients } from "../../services/clientService";
 import { exportReport, getReport } from "../../services/reportService";
 import { getErrorMessage } from "../../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../../utils/format";
+import { DEFAULT_PAGINATION } from "../../utils/pagination";
 import { FilterShell, LoadingBox, ReportActions, ReportError, ReportHeader } from "./reportUi";
 
 export default function SalesReport() {
@@ -16,12 +17,14 @@ export default function SalesReport() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
     try {
-      const [report, clientsData] = await Promise.all([getReport("sales", filters), getClients()]);
+      const [report, clientsData] = await Promise.all([getReport("sales", { ...filters, page, limit: pagination.limit }), getClients()]);
       setData(report);
+      setPagination(report.meta || { ...pagination, page });
       setClients(clientsData);
       setError("");
     } catch (err) {
@@ -56,7 +59,7 @@ export default function SalesReport() {
         <ReportActions exporting={exporting} onExcel={() => download("excel")} onPdf={() => download("pdf")} onPrint={() => window.print()} />
       </ReportHeader>
       <ReportError>{error}</ReportError>
-      <FilterShell onSubmit={(event) => { event.preventDefault(); load(); }}>
+      <FilterShell onSubmit={(event) => { event.preventDefault(); load(1); }}>
         <FormField label="Desde" type="date" value={filters.startDate} onChange={(value) => setFilters({ ...filters, startDate: value })} />
         <FormField label="Hasta" type="date" value={filters.endDate} onChange={(value) => setFilters({ ...filters, endDate: value })} />
         <FormField label="Cliente" as="select" value={filters.clientId} onChange={(value) => setFilters({ ...filters, clientId: value })}>
@@ -72,7 +75,7 @@ export default function SalesReport() {
         <SummaryCard title="Ganancia bruta" value={money.format(Number(data.grossProfit || 0))} icon={TrendingUp} tone="green" />
         <SummaryCard title="Facturas" value={data.countInvoices || 0} icon={Receipt} tone="blue" />
       </section>
-      <DataTable columns={columns} rows={data.invoices || []} minWidth="980px" emptyTitle="Sin ventas" emptyDescription="No hay facturas con los filtros aplicados." />
+      <DataTable columns={columns} rows={data.invoices || []} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin ventas" emptyDescription="No hay facturas con los filtros aplicados." />
     </div>
   );
 }

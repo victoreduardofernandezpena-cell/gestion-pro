@@ -9,6 +9,7 @@ import EmptyState from "../components/EmptyState";
 import FormField from "../components/FormField";
 import { ActionBar, FormCard, FormGrid, FormPageLayout, FormSection } from "../components/FormLayout";
 import { getErrorMessage } from "../utils/errors";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const emptyMovement = { productId: "", warehouseId: "", type: "ENTRADA", quantity: 1, cost: "", reference: "", document: "", lotNumber: "", serialNumber: "", expirationDate: "", reason: "" };
 const emptyMovementFilters = { product: "", warehouseId: "", type: "", reference: "", startDate: "", endDate: "" };
@@ -26,16 +27,27 @@ export default function Inventory() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [inventoryPagination, setInventoryPagination] = useState(DEFAULT_PAGINATION);
+  const [movementPagination, setMovementPagination] = useState({ ...DEFAULT_PAGINATION, limit: 25 });
 
-  const load = async (filters = movementFilters) => {
+  const load = async (filters = movementFilters, inventoryPage = inventoryPagination.page, movementPage = movementPagination.page) => {
     setLoading(true);
     try {
-      const [inventoryData, movementData, warehouseData, alertData] = await Promise.all([getInventory(), getInventoryMovements(filters), getWarehouses(), getInventoryAlerts()]);
-      setInventory(inventoryData);
-      setMovements(movementData);
+      const [inventoryData, movementData, warehouseData, alertData] = await Promise.all([
+        getInventory({ search: inventoryFilters.search, page: inventoryPage, limit: inventoryPagination.limit }),
+        getInventoryMovements({ ...filters, page: movementPage, limit: movementPagination.limit }),
+        getWarehouses(),
+        getInventoryAlerts()
+      ]);
+      const inventoryResult = normalizePaginatedResult(inventoryData, { ...inventoryPagination, page: inventoryPage });
+      const movementResult = normalizePaginatedResult(movementData, { ...movementPagination, page: movementPage });
+      setInventory(inventoryResult.rows);
+      setInventoryPagination(inventoryResult.meta);
+      setMovements(movementResult.rows);
+      setMovementPagination(movementResult.meta);
       setWarehouses(warehouseData.filter((warehouse) => warehouse.isActive));
       setAlerts(alertData);
-      if (!form.productId && inventoryData[0]) setForm((current) => ({ ...current, productId: inventoryData[0].id }));
+      if (!form.productId && inventoryResult.rows[0]) setForm((current) => ({ ...current, productId: inventoryResult.rows[0].id }));
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar inventario"));
@@ -55,7 +67,7 @@ export default function Inventory() {
     try {
       await createInventoryMovement(form);
       setForm((current) => ({ ...emptyMovement, productId: current.productId }));
-      await load();
+      await load(movementFilters, inventoryPagination.page, movementPagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible registrar el movimiento"));
     } finally {
@@ -65,12 +77,17 @@ export default function Inventory() {
 
   const submitMovementFilters = (event) => {
     event.preventDefault();
-    load(movementFilters);
+    load(movementFilters, inventoryPagination.page, 1);
   };
 
   const clearMovementFilters = () => {
     setMovementFilters(emptyMovementFilters);
-    load(emptyMovementFilters);
+    load(emptyMovementFilters, inventoryPagination.page, 1);
+  };
+
+  const applyInventoryFilters = (event) => {
+    event.preventDefault();
+    load(movementFilters, 1, movementPagination.page);
   };
 
   const typeIcon = {
@@ -141,6 +158,21 @@ export default function Inventory() {
     }
   ];
 
+  const movementColumns = [
+    { key: "type", header: "Tipo", render: (movement) => <span className="flex items-center gap-2">{typeIcon[movement.type]} {movement.type}</span> },
+    { key: "product", header: "Producto", render: (movement) => `${movement.product?.code || "-"} - ${movement.product?.name || "-"}` },
+    { key: "warehouse", header: "Almacen", render: (movement) => movement.warehouse?.name || "-" },
+    { key: "entry", header: "Entrada", align: "right", render: (movement) => movement.type === "ENTRADA" ? movement.quantity : "" },
+    { key: "exit", header: "Salida", align: "right", render: (movement) => movement.type === "SALIDA" ? movement.quantity : "" },
+    { key: "cost", header: "Costo", align: "right", render: (movement) => movement.cost ? money.format(Number(movement.cost)) : "-" },
+    { key: "reference", header: "Referencia", render: (movement) => movement.reference || "-" },
+    { key: "document", header: "Documento", render: (movement) => movement.document || "-" },
+    { key: "lotNumber", header: "Lote", render: (movement) => movement.lotNumber || "-" },
+    { key: "serialNumber", header: "Serie", render: (movement) => movement.serialNumber || "-" },
+    { key: "expirationDate", header: "Vence", render: (movement) => movement.expirationDate ? new Date(movement.expirationDate).toLocaleDateString("es-DO") : "-" },
+    { key: "note", header: "Nota", render: (movement) => movement.note || movement.reason || "-" }
+  ];
+
   return (
     <FormPageLayout
       eyebrow="Almacen"
@@ -200,7 +232,7 @@ export default function Inventory() {
         </FormCard>
 
         <FormCard title="Existencias actuales" description="Vista rapida del stock global por producto.">
-          <form className="mb-5 space-y-4">
+          <form onSubmit={applyInventoryFilters} className="mb-5 space-y-4">
             <FormGrid columns="xl:grid-cols-3">
               <FormField label="Buscar producto" value={inventoryFilters.search} onChange={(value) => setInventoryFilters({ ...inventoryFilters, search: value })} placeholder="Codigo, nombre, SKU, marca" />
               <FormField label="Estado de stock" as="select" value={inventoryFilters.status} onChange={(value) => setInventoryFilters({ ...inventoryFilters, status: value })}>
@@ -217,10 +249,11 @@ export default function Inventory() {
               </FormField>
             </FormGrid>
             <ActionBar>
+              <Button type="submit" icon={Search} loading={loading}>Buscar existencias</Button>
               <Button type="button" variant="outline" icon={RotateCcw} onClick={() => setInventoryFilters(emptyInventoryFilters)}>Limpiar filtros</Button>
             </ActionBar>
           </form>
-          <DataTable columns={columns} rows={filteredInventory} minWidth="980px" emptyTitle="No hay productos en inventario" emptyDescription="Crea productos o ajusta los filtros." />
+          <DataTable columns={columns} rows={filteredInventory} pagination={inventoryPagination} onPageChange={(page) => load(movementFilters, page, movementPagination.page)} minWidth="980px" emptyTitle="No hay productos en inventario" emptyDescription="Crea productos o ajusta los filtros." />
         </FormCard>
       </section>
 
@@ -250,37 +283,7 @@ export default function Inventory() {
           </ActionBar>
         </form>
 
-        {movements.length === 0 ? (
-          <EmptyState title="Sin movimientos" description="Los movimientos de inventario apareceran aqui." />
-        ) : (
-          <div className="table-scroll overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="w-full min-w-[1080px] text-sm">
-              <thead className="bg-slate-50 text-left text-xs uppercase tracking-[0.14em] text-slate-500 dark:bg-slate-950/50 dark:text-slate-400">
-                <tr>
-                  {["Tipo", "Producto", "Almacen", "Entrada", "Salida", "Costo", "Referencia", "Documento", "Lote", "Serie", "Vence", "Nota"].map((header) => <th key={header} className="px-3 py-2">{header}</th>)}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {movements.map((movement) => (
-                  <tr key={movement.id} className="transition hover:bg-teal-50/40 dark:hover:bg-slate-800/60">
-                    <td className="px-3 py-2"><span className="flex items-center gap-2">{typeIcon[movement.type]} {movement.type}</span></td>
-                    <td className="px-3 py-2">{movement.product?.code} - {movement.product?.name}</td>
-                    <td className="px-3 py-2">{movement.warehouse?.name || "-"}</td>
-                    <td className="px-3 py-2 text-right">{movement.type === "ENTRADA" ? movement.quantity : ""}</td>
-                    <td className="px-3 py-2 text-right">{movement.type === "SALIDA" ? movement.quantity : ""}</td>
-                    <td className="px-3 py-2 text-right">{movement.cost ? money.format(Number(movement.cost)) : "-"}</td>
-                    <td className="px-3 py-2">{movement.reference || "-"}</td>
-                    <td className="px-3 py-2">{movement.document || "-"}</td>
-                    <td className="px-3 py-2">{movement.lotNumber || "-"}</td>
-                    <td className="px-3 py-2">{movement.serialNumber || "-"}</td>
-                    <td className="px-3 py-2">{movement.expirationDate ? new Date(movement.expirationDate).toLocaleDateString("es-DO") : "-"}</td>
-                    <td className="px-3 py-2">{movement.note || movement.reason || "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <DataTable columns={movementColumns} rows={movements} pagination={movementPagination} onPageChange={(page) => load(movementFilters, inventoryPagination.page, page)} minWidth="1080px" emptyTitle="Sin movimientos" emptyDescription="Los movimientos de inventario apareceran aqui." />
       </FormCard>
     </FormPageLayout>
   );

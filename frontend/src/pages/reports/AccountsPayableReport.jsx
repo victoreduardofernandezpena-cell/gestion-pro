@@ -7,6 +7,7 @@ import { getSuppliers } from "../../services/supplierService";
 import { exportReport, getReport } from "../../services/reportService";
 import { getErrorMessage } from "../../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../../utils/format";
+import { DEFAULT_PAGINATION } from "../../utils/pagination";
 import { FilterShell, LoadingBox, ReportActions, ReportError, ReportHeader } from "./reportUi";
 
 export default function AccountsPayableReport() {
@@ -16,12 +17,14 @@ export default function AccountsPayableReport() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
     try {
-      const [report, suppliersData] = await Promise.all([getReport("accounts-payable", filters), getSuppliers()]);
+      const [report, suppliersData] = await Promise.all([getReport("accounts-payable", { ...filters, page, limit: pagination.limit }), getSuppliers()]);
       setData(report);
+      setPagination(report.meta || { ...pagination, page });
       setSuppliers(suppliersData);
       setError("");
     } catch (err) {
@@ -46,7 +49,7 @@ export default function AccountsPayableReport() {
     <div className="print-area space-y-6">
       <ReportHeader title="Reporte de Cuentas por Pagar"><ReportActions exporting={exporting} onExcel={() => download("excel")} onPdf={() => download("pdf")} onPrint={() => window.print()} /></ReportHeader>
       <ReportError>{error}</ReportError>
-      <FilterShell onSubmit={(event) => { event.preventDefault(); load(); }}>
+      <FilterShell onSubmit={(event) => { event.preventDefault(); load(1); }}>
         <FormField label="Desde" type="date" value={filters.startDate} onChange={(value) => setFilters({ ...filters, startDate: value })} />
         <FormField label="Hasta" type="date" value={filters.endDate} onChange={(value) => setFilters({ ...filters, endDate: value })} />
         <FormField label="Proveedor" as="select" value={filters.supplierId} onChange={(value) => setFilters({ ...filters, supplierId: value })}><option value="">Todos</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</FormField>
@@ -57,7 +60,7 @@ export default function AccountsPayableReport() {
         <SummaryCard title="Pendientes" value={data.countPending || 0} icon={FileClock} tone="amber" />
         <SummaryCard title="Parciales" value={data.countPartial || 0} icon={FileClock} tone="blue" />
       </section>
-      <DataTable columns={columns} rows={data.purchases || []} minWidth="980px" emptyTitle="Sin cuentas por pagar" />
+      <DataTable columns={columns} rows={data.purchases || []} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin cuentas por pagar" />
     </div>
   );
 }

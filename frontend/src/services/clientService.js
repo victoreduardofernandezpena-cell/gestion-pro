@@ -1,7 +1,7 @@
 import api from "./api";
 
-export const getClients = async (search = "") => {
-  const { data } = await api.get("/clients", { params: { search } });
+export const getClients = async (search = "", params = {}) => {
+  const { data } = await api.get("/clients", { params: { search, ...params } });
   return data;
 };
 

@@ -9,6 +9,7 @@ import { getErrorMessage } from "../utils/errors";
 import { getBrands } from "../services/brandService";
 import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
 import { getCategories } from "../services/settingsService";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const emptyProduct = {
   code: "",
@@ -49,11 +50,15 @@ export default function Products() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const loadProducts = async (query = search) => {
+  const loadProducts = async (query = search, page = pagination.page) => {
     setLoading(true);
     try {
-      setProducts(await getProducts(query));
+      const result = await getProducts(query, { page, limit: pagination.limit });
+      const normalized = normalizePaginatedResult(result, { ...pagination, page });
+      setProducts(normalized.rows);
+      setPagination(normalized.meta);
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar productos"));
@@ -84,7 +89,7 @@ export default function Products() {
       if (editingId) await updateProduct(editingId, form);
       else await createProduct(form);
       resetForm();
-      await loadProducts();
+      await loadProducts(search, pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible guardar el producto"));
     } finally {
@@ -117,7 +122,7 @@ export default function Products() {
     if (!confirm("Eliminar producto?")) return;
     try {
       await deleteProduct(id);
-      await loadProducts();
+      await loadProducts(search, pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible eliminar el producto"));
     }
@@ -173,10 +178,10 @@ export default function Products() {
         <div className="flex flex-col gap-2 sm:flex-row">
           <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 dark:border-slate-700 dark:bg-slate-900">
             <Search size={18} className="text-slate-400" />
-            <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProducts(event.currentTarget.value)} placeholder="Buscar nombre, codigo, SKU" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-64" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => event.key === "Enter" && loadProducts(event.currentTarget.value, 1)} placeholder="Buscar nombre, codigo, SKU" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400 sm:w-64" />
           </div>
-          <Button type="button" variant="outline" icon={Search} onClick={() => loadProducts(search)}>Buscar</Button>
-          <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => { setSearch(""); loadProducts(""); }}>Limpiar</Button>
+          <Button type="button" variant="outline" icon={Search} onClick={() => loadProducts(search, 1)}>Buscar</Button>
+          <Button type="button" variant="ghost" icon={RotateCcw} onClick={() => { setSearch(""); loadProducts("", 1); }}>Limpiar</Button>
         </div>
       )}
     >
@@ -288,7 +293,7 @@ export default function Products() {
       </form>
 
       <FormCard title="Listado de productos" description="Consulta, edita o elimina productos del catalogo.">
-        <DataTable columns={columns} rows={products} loading={loading} minWidth="980px" emptyTitle="No hay productos" emptyDescription="Crea un producto o ajusta la busqueda." />
+        <DataTable columns={columns} rows={products} loading={loading} pagination={pagination} onPageChange={(page) => loadProducts(search, page)} minWidth="980px" emptyTitle="No hay productos" emptyDescription="Crea un producto o ajusta la busqueda." />
       </FormCard>
     </FormPageLayout>
   );

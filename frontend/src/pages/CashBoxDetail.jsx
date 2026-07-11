@@ -2,11 +2,13 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
 import DataTable from "../components/DataTable";
+import FinancialOriginLink from "../components/FinancialOriginLink";
 import FormField from "../components/FormField";
 import SummaryCard from "../components/SummaryCard";
-import { adjustCashBox, cashIn, cashOut, getCashBox } from "../services/cashBoxService";
+import { adjustCashBox, cashIn, cashOut, getCashBox, getCashBoxTransactions } from "../services/cashBoxService";
 import { getErrorMessage } from "../utils/errors";
 import { cashTransactionLabels, formatDate, money } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const baseMovement = { amount: "", description: "", reference: "", transactionDate: new Date().toISOString().slice(0, 10) };
 const baseAdjustment = { newBalance: "", reason: "", reference: "", transactionDate: new Date().toISOString().slice(0, 10) };
@@ -17,12 +19,24 @@ export default function CashBoxDetail() {
   const [entry, setEntry] = useState(baseMovement);
   const [exit, setExit] = useState(baseMovement);
   const [adjustment, setAdjustment] = useState(baseAdjustment);
+  const [transactions, setTransactions] = useState([]);
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
-    try { setCashBox(await getCashBox(id)); setError(""); } catch (err) { setError(getErrorMessage(err, "No fue posible cargar la caja chica")); } finally { setLoading(false); }
+    try {
+      const [cashBoxData, transactionData] = await Promise.all([
+        getCashBox(id, { includeTransactions: false }),
+        getCashBoxTransactions(id, { page, limit: pagination.limit })
+      ]);
+      const normalized = normalizePaginatedResult(transactionData, { ...pagination, page });
+      setCashBox(cashBoxData);
+      setTransactions(normalized.rows);
+      setPagination(normalized.meta);
+      setError("");
+    } catch (err) { setError(getErrorMessage(err, "No fue posible cargar la caja chica")); } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, [id]);
 
@@ -33,14 +47,14 @@ export default function CashBoxDetail() {
     try {
       if (kind === "in") { await cashIn(id, { ...payload, amount: Number(payload.amount) }); setEntry(baseMovement); }
       else { await cashOut(id, { ...payload, amount: Number(payload.amount) }); setExit(baseMovement); }
-      await load();
+      await load(pagination.page);
     } catch (err) { setError(getErrorMessage(err, "No fue posible registrar el movimiento")); }
   };
 
   const submitAdjustment = async (event) => {
     event.preventDefault();
     if (Number(adjustment.newBalance) < 0 || !adjustment.reason.trim()) return setError("El ajuste requiere razon y balance no negativo");
-    try { await adjustCashBox(id, { ...adjustment, newBalance: Number(adjustment.newBalance) }); setAdjustment(baseAdjustment); await load(); } catch (err) { setError(getErrorMessage(err, "No fue posible ajustar la caja")); }
+    try { await adjustCashBox(id, { ...adjustment, newBalance: Number(adjustment.newBalance) }); setAdjustment(baseAdjustment); await load(pagination.page); } catch (err) { setError(getErrorMessage(err, "No fue posible ajustar la caja")); }
   };
 
   if (loading) return <div className="rounded-lg bg-white p-6 shadow-soft">Cargando caja chica...</div>;
@@ -51,7 +65,8 @@ export default function CashBoxDetail() {
     { key: "type", header: "Tipo", render: (row) => cashTransactionLabels[row.type] },
     { key: "amount", header: "Monto", render: (row) => money.format(Number(row.amount)) },
     { key: "description", header: "Descripcion" },
-    { key: "reference", header: "Referencia" }
+    { key: "reference", header: "Referencia" },
+    { key: "origin", header: "Origen", render: (row) => <FinancialOriginLink origin={row.origin} /> }
   ];
   return (
     <div className="space-y-6">
@@ -63,7 +78,7 @@ export default function CashBoxDetail() {
         <form onSubmit={(e) => submitMovement(e, "out")} className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><h2 className="mb-4 text-lg font-semibold">Salida</h2><FormField label="Monto" type="number" min={0} value={exit.amount} onChange={(v) => setExit({ ...exit, amount: v })} required /><FormField label="Descripcion" value={exit.description} onChange={(v) => setExit({ ...exit, description: v })} /><FormField label="Referencia" value={exit.reference} onChange={(v) => setExit({ ...exit, reference: v })} /><FormField label="Fecha" type="date" value={exit.transactionDate} onChange={(v) => setExit({ ...exit, transactionDate: v })} required /><button className="rounded-lg bg-slate-900 px-4 py-2 font-semibold text-white">Registrar salida</button></form>
         <form onSubmit={submitAdjustment} className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><h2 className="mb-4 text-lg font-semibold">Ajuste</h2><FormField label="Nuevo balance" type="number" min={0} value={adjustment.newBalance} onChange={(v) => setAdjustment({ ...adjustment, newBalance: v })} required /><FormField label="Razon" value={adjustment.reason} onChange={(v) => setAdjustment({ ...adjustment, reason: v })} required /><FormField label="Referencia" value={adjustment.reference} onChange={(v) => setAdjustment({ ...adjustment, reference: v })} /><FormField label="Fecha" type="date" value={adjustment.transactionDate} onChange={(v) => setAdjustment({ ...adjustment, transactionDate: v })} required /><button className="rounded-lg bg-amber-600 px-4 py-2 font-semibold text-white">Ajustar</button></form>
       </section>
-      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><h2 className="mb-4 text-lg font-semibold">Historial de movimientos</h2><DataTable columns={columns} rows={cashBox.transactions} minWidth="760px" emptyTitle="Sin movimientos" /></section>
+      <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft"><h2 className="mb-4 text-lg font-semibold">Historial de movimientos</h2><DataTable columns={columns} rows={transactions} pagination={pagination} onPageChange={load} minWidth="980px" emptyTitle="Sin movimientos" /></section>
     </div>
   );
 }

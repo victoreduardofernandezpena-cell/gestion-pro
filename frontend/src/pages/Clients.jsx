@@ -16,11 +16,14 @@ export default function Clients() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
 
-  const loadClients = async (query = search) => {
+  const loadClients = async (query = search, page = pagination.page) => {
     setLoading(true);
     try {
-      setClients(await getClients(query));
+      const result = await getClients(query, { page, limit: pagination.limit });
+      setClients(result.data || result);
+      setPagination(result.meta || { page, limit: pagination.limit, total: Array.isArray(result) ? result.length : 0, totalPages: 1 });
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar clientes"));
@@ -30,7 +33,7 @@ export default function Clients() {
   };
 
   useEffect(() => {
-    loadClients("");
+    loadClients("", 1);
   }, []);
 
   const submit = async (event) => {
@@ -42,7 +45,7 @@ export default function Clients() {
       else await createClient(form);
       setForm(emptyClient);
       setEditingId(null);
-      await loadClients();
+      await loadClients(search, pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible guardar el cliente"));
     } finally {
@@ -59,7 +62,7 @@ export default function Clients() {
     if (!confirm("Eliminar cliente?")) return;
     try {
       await deleteClient(id);
-      await loadClients();
+      await loadClients(search, pagination.page);
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible eliminar el cliente"));
     }
@@ -95,7 +98,7 @@ export default function Clients() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            onKeyDown={(event) => event.key === "Enter" && loadClients(event.currentTarget.value)}
+            onKeyDown={(event) => event.key === "Enter" && loadClients(event.currentTarget.value, 1)}
             placeholder="Nombre, RNC o telefono"
             className="w-64 outline-none"
           />
@@ -125,7 +128,14 @@ export default function Clients() {
         {loading ? (
           <div className="rounded-lg bg-white p-6 shadow-soft">Cargando clientes...</div>
         ) : (
-          <DataTable columns={columns} rows={clients} emptyTitle="No hay clientes" emptyDescription="Crea un cliente o ajusta la busqueda." />
+          <DataTable
+            columns={columns}
+            rows={clients}
+            pagination={pagination}
+            onPageChange={(page) => loadClients(search, page)}
+            emptyTitle="No hay clientes"
+            emptyDescription="Crea un cliente o ajusta la busqueda."
+          />
         )}
       </section>
     </div>

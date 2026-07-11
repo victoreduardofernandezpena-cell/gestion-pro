@@ -1,7 +1,7 @@
 import api from "./api";
 
-export const getInventory = async () => {
-  const { data } = await api.get("/inventory");
+export const getInventory = async (params = {}) => {
+  const { data } = await api.get("/inventory", { params });
   return data;
 };
 

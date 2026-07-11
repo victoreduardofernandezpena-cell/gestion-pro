@@ -576,11 +576,15 @@ model BankTransaction {
   amount          Decimal             @db.Decimal(12, 2)
   description     String?
   reference       String?
+  sourceType      String?
+  sourceId        Int?
+  sourceNumber    String?
   transactionDate DateTime
   createdAt       DateTime            @default(now())
   purchasePayment PurchasePayment?
 
   @@index([companyId])
+  @@index([companyId, sourceType, sourceId])
 }
 
 model CashBox {
@@ -610,10 +614,14 @@ model CashTransaction {
   amount          Decimal             @db.Decimal(12, 2)
   description     String?
   reference       String?
+  sourceType      String?
+  sourceId        Int?
+  sourceNumber    String?
   transactionDate DateTime
   createdAt       DateTime            @default(now())
 
   @@index([companyId])
+  @@index([companyId, sourceType, sourceId])
 }
 
 model Expense {

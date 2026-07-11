@@ -1,23 +1,42 @@
 import { useEffect, useState } from "react";
-import { Eye, Plus } from "lucide-react";
+import { Eye, Plus, RotateCcw, Search } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import AlertMessage from "../components/AlertMessage";
+import Button from "../components/Button";
 import DataTable from "../components/DataTable";
+import FormField from "../components/FormField";
 import { getPurchases } from "../services/purchaseService";
 import { getErrorMessage } from "../utils/errors";
 import { formatDate, money, statusClass, statusLabels } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
+
+const emptyFilters = { text: "", supplier: "", status: "" };
 
 export default function Purchases() {
   const navigate = useNavigate();
   const [purchases, setPurchases] = useState([]);
+  const [filters, setFilters] = useState(emptyFilters);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
+
+  const load = async (nextFilters = filters, page = pagination.page) => {
+    setLoading(true);
+    try {
+      const result = await getPurchases({ ...nextFilters, page, limit: pagination.limit });
+      const normalized = normalizePaginatedResult(result, { ...pagination, page });
+      setPurchases(normalized.rows);
+      setPagination(normalized.meta);
+      setError("");
+    } catch (err) {
+      setError(getErrorMessage(err, "No fue posible cargar compras"));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    getPurchases()
-      .then(setPurchases)
-      .catch((err) => setError(getErrorMessage(err, "No fue posible cargar compras")))
-      .finally(() => setLoading(false));
+    load(emptyFilters, 1);
   }, []);
 
   const columns = [
@@ -61,10 +80,25 @@ export default function Purchases() {
         </Link>
       </div>
       <AlertMessage>{error}</AlertMessage>
+      <form onSubmit={(event) => { event.preventDefault(); load(filters, 1); }} className="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-soft md:grid-cols-4">
+        <FormField label="Texto" value={filters.text} onChange={(value) => setFilters({ ...filters, text: value })} placeholder="Compra o referencia" />
+        <FormField label="Proveedor" value={filters.supplier} onChange={(value) => setFilters({ ...filters, supplier: value })} placeholder="Nombre o RNC" />
+        <FormField label="Estado" as="select" value={filters.status} onChange={(value) => setFilters({ ...filters, status: value })}>
+          <option value="">Todos</option>
+          <option value="PENDING">Pendiente</option>
+          <option value="PARTIAL">Parcial</option>
+          <option value="PAID">Pagada</option>
+          <option value="CANCELLED">Cancelada</option>
+        </FormField>
+        <div className="flex items-end gap-2">
+          <Button type="submit" icon={Search} loading={loading}>Buscar</Button>
+          <Button type="button" variant="outline" icon={RotateCcw} onClick={() => { setFilters(emptyFilters); load(emptyFilters, 1); }}>Limpiar</Button>
+        </div>
+      </form>
       {loading ? (
         <div className="rounded-lg bg-white p-6 shadow-soft">Cargando compras...</div>
       ) : (
-        <DataTable columns={columns} rows={purchases} minWidth="980px" emptyTitle="No hay compras" emptyDescription="Crea una compra para aumentar inventario y registrar cuentas por pagar." />
+        <DataTable columns={columns} rows={purchases} pagination={pagination} onPageChange={(page) => load(filters, page)} minWidth="980px" emptyTitle="No hay compras" emptyDescription="Crea una compra para aumentar inventario y registrar cuentas por pagar." />
       )}
     </div>
   );

@@ -11,8 +11,8 @@ export default function Card({ as: Component = "section", children, className, p
   return (
     <Component
       className={clsx(
-        "rounded-xl border border-slate-200/80 bg-white/95 shadow-soft shadow-slate-900/5 transition-colors duration-200 dark:border-slate-800/80 dark:bg-slate-900/90 dark:shadow-black/10",
-        interactive && "transition duration-200 hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-lg hover:shadow-slate-900/10 dark:hover:border-slate-700 dark:hover:shadow-black/20",
+        "rounded-2xl border border-warm-400/80 bg-warm-50/95 shadow-soft shadow-stone-900/5 transition-colors duration-200 dark:border-warm-800 dark:bg-warm-900/95 dark:shadow-black/20",
+        interactive && "transition duration-200 hover:-translate-y-0.5 hover:border-olive-500/40 hover:shadow-warm dark:hover:border-terracotta-300/40 dark:hover:shadow-black/25",
         paddingClasses[padding],
         className
       )}

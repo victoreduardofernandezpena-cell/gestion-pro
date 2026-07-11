@@ -4,6 +4,7 @@ import { parseIdParam } from "../utils/http.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
 import { validatePasswordPolicy } from "../utils/passwordPolicy.js";
+import { findManyMaybePaginated, hasPaginationQuery } from "../utils/pagination.js";
 
 const ROLES = ["admin", "ventas", "almacen", "contabilidad"];
 const normalizeEmail = (email) => email?.trim().toLowerCase();
@@ -58,17 +59,21 @@ export const listUsers = async (req, res, next) => {
     const search = req.query.search?.trim();
     const role = req.query.role;
     const isActive = req.query.status === "active" ? true : req.query.status === "inactive" ? false : undefined;
-    const rows = await prisma.userCompany.findMany({
-      where: {
-        companyId,
-        ...(ROLES.includes(role) ? { role } : {}),
-        ...(isActive === undefined ? {} : { isActive }),
-        ...(search ? { user: { OR: [{ name: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] } } : {})
-      },
+    const where = {
+      companyId,
+      ...(ROLES.includes(role) ? { role } : {}),
+      ...(isActive === undefined ? {} : { isActive }),
+      ...(search ? { user: { OR: [{ name: { contains: search, mode: "insensitive" } }, { email: { contains: search, mode: "insensitive" } }] } } : {})
+    };
+    const result = await findManyMaybePaginated(prisma.userCompany, {
+      where,
       include: { user: { select: userSelect } },
       orderBy: { createdAt: "desc" }
-    });
-    res.json(rows.map(serializeUserCompany));
+    }, req.query);
+    if (hasPaginationQuery(req.query)) {
+      return res.json({ data: result.data.map(serializeUserCompany), meta: result.meta });
+    }
+    res.json(result.map(serializeUserCompany));
   } catch (error) {
     next(error);
   }

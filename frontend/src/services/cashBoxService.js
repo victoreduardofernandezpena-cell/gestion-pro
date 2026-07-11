@@ -1,12 +1,17 @@
 import api from "./api";
 
-export const getCashBoxes = async () => {
-  const { data } = await api.get("/cash-boxes");
+export const getCashBoxes = async (params = {}) => {
+  const { data } = await api.get("/cash-boxes", { params });
   return data;
 };
 
-export const getCashBox = async (id) => {
-  const { data } = await api.get(`/cash-boxes/${id}`);
+export const getCashBox = async (id, params = {}) => {
+  const { data } = await api.get(`/cash-boxes/${id}`, { params });
+  return data;
+};
+
+export const getCashBoxTransactions = async (id, params = {}) => {
+  const { data } = await api.get(`/cash-boxes/${id}/transactions`, { params });
   return data;
 };
 

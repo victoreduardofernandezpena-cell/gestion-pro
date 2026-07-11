@@ -8,6 +8,7 @@ import SummaryCard from "../components/SummaryCard";
 import { createCashBox, deleteCashBox, getCashBoxes, updateCashBox } from "../services/cashBoxService";
 import { getErrorMessage } from "../utils/errors";
 import { money } from "../utils/format";
+import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const emptyCashBox = { name: "", description: "", initialBalance: 0 };
 
@@ -19,10 +20,17 @@ export default function CashBox() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
 
-  const load = async () => {
+  const load = async (page = pagination.page) => {
     setLoading(true);
-    try { setCashBoxes(await getCashBoxes()); setError(""); } catch (err) { setError(getErrorMessage(err, "No fue posible cargar cajas chicas")); } finally { setLoading(false); }
+    try {
+      const result = await getCashBoxes({ page, limit: pagination.limit });
+      const normalized = normalizePaginatedResult(result, { ...pagination, page });
+      setCashBoxes(normalized.rows);
+      setPagination(normalized.meta);
+      setError("");
+    } catch (err) { setError(getErrorMessage(err, "No fue posible cargar cajas chicas")); } finally { setLoading(false); }
   };
   useEffect(() => { load(); }, []);
 
@@ -38,14 +46,14 @@ export default function CashBox() {
       else await createCashBox(form);
       setForm(emptyCashBox);
       setEditingId(null);
-      await load();
+      await load(pagination.page);
     } catch (err) { setError(getErrorMessage(err, "No fue posible guardar la caja chica")); } finally { setSaving(false); }
   };
 
   const edit = (box) => { setEditingId(box.id); setForm({ name: box.name, description: box.description || "", initialBalance: box.initialBalance }); };
   const remove = async (id) => {
     if (!confirm("Eliminar o desactivar esta caja chica?")) return;
-    try { await deleteCashBox(id); await load(); } catch (err) { setError(getErrorMessage(err, "No fue posible eliminar o desactivar la caja")); }
+    try { await deleteCashBox(id); await load(pagination.page); } catch (err) { setError(getErrorMessage(err, "No fue posible eliminar o desactivar la caja")); }
   };
 
   const columns = [
@@ -69,7 +77,7 @@ export default function CashBox() {
           {!editingId && <FormField label="Balance inicial" type="number" min={0} value={form.initialBalance} onChange={(value) => setForm({ ...form, initialBalance: value })} />}
           <div className="flex gap-2"><button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? "Guardando..." : "Guardar"}</button>{editingId && <button type="button" onClick={() => { setEditingId(null); setForm(emptyCashBox); }} className="rounded-lg border border-slate-300 px-4 py-2">Cancelar</button>}</div>
         </form>
-        {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando cajas chicas...</div> : <DataTable columns={columns} rows={cashBoxes} minWidth="820px" emptyTitle="No hay cajas chicas" emptyDescription="Crea una caja chica para registrar movimientos." />}
+        {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando cajas chicas...</div> : <DataTable columns={columns} rows={cashBoxes} pagination={pagination} onPageChange={load} minWidth="820px" emptyTitle="No hay cajas chicas" emptyDescription="Crea una caja chica para registrar movimientos." />}
       </section>
     </div>
   );

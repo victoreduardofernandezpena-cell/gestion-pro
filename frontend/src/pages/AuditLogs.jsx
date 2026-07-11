@@ -6,6 +6,7 @@ import { getAuditLogs } from "../services/auditService";
 import { getUsers } from "../services/userService";
 import { getErrorMessage } from "../utils/errors";
 import { formatDate } from "../utils/format";
+import { normalizePaginatedResult } from "../utils/pagination";
 
 export default function AuditLogs() {
   const [logs, setLogs] = useState([]);
@@ -19,9 +20,11 @@ export default function AuditLogs() {
     setLoading(true);
     try {
       const [data, usersData] = await Promise.all([getAuditLogs(nextFilters), getUsers()]);
-      setLogs(data.logs);
-      setMeta({ page: data.page, totalPages: data.totalPages, total: data.total });
-      setUsers(usersData);
+      const normalizedLogs = normalizePaginatedResult(data, { page: nextFilters.page, limit: nextFilters.limit, total: 0, totalPages: 1 });
+      const normalizedUsers = normalizePaginatedResult(usersData, { page: 1, limit: 100, total: 0, totalPages: 1 });
+      setLogs(normalizedLogs.rows);
+      setMeta(normalizedLogs.meta);
+      setUsers(normalizedUsers.rows);
       setError("");
     } catch (err) {
       setError(getErrorMessage(err, "No fue posible cargar auditoria"));
@@ -63,11 +66,7 @@ export default function AuditLogs() {
         </div>
         <button className="mt-3 rounded-lg bg-accent px-4 py-2 font-semibold text-white">Filtrar</button>
       </form>
-      {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando auditoria...</div> : <DataTable columns={columns} rows={logs} minWidth="1280px" emptyTitle="Sin logs" emptyDescription="No hay acciones con los filtros aplicados." />}
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-4 text-sm text-slate-600 shadow-soft">
-        <span>Total: {meta.total}</span>
-        <span>Pagina {meta.page} de {meta.totalPages || 1}</span>
-      </div>
+      {loading ? <div className="rounded-lg bg-white p-6 shadow-soft">Cargando auditoria...</div> : <DataTable columns={columns} rows={logs} pagination={meta} onPageChange={(page) => { const next = { ...filters, page }; setFilters(next); load(next); }} minWidth="1280px" emptyTitle="Sin logs" emptyDescription="No hay acciones con los filtros aplicados." />}
     </div>
   );
 }

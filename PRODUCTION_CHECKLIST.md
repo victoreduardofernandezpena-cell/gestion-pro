@@ -9,9 +9,12 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 - [ ] Revisar `DATABASE_URL` apuntando a la base real correcta.
 - [ ] Configurar `DIRECT_URL` si el proveedor de base de datos lo requiere.
 - [ ] Configurar `VITE_API_URL` con la URL publica de la API.
+- [ ] Configurar `VITE_DISABLE_PUBLIC_REGISTER=true` si el registro publico debe quedar oculto.
 - [ ] Configurar `FRONTEND_URL` con el dominio real del frontend.
 - [ ] Configurar `FRONTEND_URLS` si hay mas de un origen permitido.
 - [ ] Mantener `DISABLE_LOGIN_RATE_LIMIT=false`.
+- [ ] Configurar `DISABLE_PUBLIC_REGISTER=true` salvo que el registro publico sea parte del piloto.
+- [ ] Configurar `JSON_BODY_LIMIT` con un limite conservador.
 - [ ] Mantener `DEBUG_ERRORS=false`.
 - [ ] Confirmar que `.env` no se sube a GitHub.
 - [ ] Confirmar que `.gitignore` cubre `.env`, `.env.*`, backups, uploads, logs, `node_modules`, `dist` y `build`.
@@ -33,6 +36,9 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 ## Seguridad y permisos
 
 - [ ] Probar login, logout, sesion expirada y token invalido.
+- [ ] Confirmar que el registro publico esta bloqueado si `DISABLE_PUBLIC_REGISTER=true`.
+- [ ] Confirmar que el frontend oculta registro publico si `VITE_DISABLE_PUBLIC_REGISTER=true`.
+- [ ] Confirmar que usuarios con cambio obligatorio de contrasena no puedan usar otras rutas API antes de actualizarla.
 - [ ] Probar 401 sin token.
 - [ ] Probar 403 con usuario sin permiso.
 - [ ] Probar 404 en ruta inexistente.
@@ -72,14 +78,17 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 - [ ] Probar clientes.
 - [ ] Probar productos.
 - [ ] Probar inventario, almacenes y marcas.
+- [ ] Probar busqueda, filtros y paginacion en listados principales.
 - [ ] Probar facturacion.
 - [ ] Probar pagos simples y multiples.
+- [ ] Confirmar que pagos generan trazabilidad hacia banco o caja cuando aplica.
 - [ ] Probar PDF de factura.
 - [ ] Probar compras y cuentas por pagar.
 - [ ] Probar cuentas por cobrar.
 - [ ] Probar banco.
 - [ ] Probar caja chica.
 - [ ] Probar gastos.
+- [ ] Confirmar que gastos generan trazabilidad hacia banco o caja cuando aplica.
 - [ ] Probar reportes y exportaciones.
 - [ ] Probar usuarios, permisos y auditoria.
 - [ ] Probar configuracion de empresa/documentos/numeracion.
@@ -92,6 +101,7 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 - [ ] Ejecutar build frontend.
 - [ ] Verificar que la API responda en `/api/health`.
 - [ ] Ejecutar verificacion backend disponible.
+- [ ] Ejecutar `npm test` en backend.
 - [ ] Ejecutar audit de dependencias si aplica.
 - [ ] Revisar consola del navegador sin errores bloqueantes.
 - [ ] Revisar logs del servidor sin errores repetidos.

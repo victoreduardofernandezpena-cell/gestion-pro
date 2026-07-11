@@ -3,6 +3,7 @@ import { sendExcel } from "../utils/excelExport.js";
 import { sendReportPdf } from "../utils/pdfGenerator.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
+import { attachFinancialOrigins, financialOriginToText } from "../utils/financialTraceability.js";
 
 const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 const today = () => new Date().toISOString().slice(0, 10);
@@ -25,6 +26,29 @@ const intQuery = (value) => {
 };
 
 const scopedQuery = (req) => ({ ...req.query, companyId: requireCompanyId(req) });
+
+const reportPagination = (query) => {
+  if (query.page === undefined && query.limit === undefined) return null;
+  const page = Math.max(Number.parseInt(query.page || "1", 10) || 1, 1);
+  const limit = Math.min(Math.max(Number.parseInt(query.limit || "25", 10) || 25, 1), 100);
+  return { page, limit, skip: (page - 1) * limit };
+};
+
+const paginateReportRows = (data, key, query) => {
+  const pagination = reportPagination(query);
+  if (!pagination) return data;
+  const rows = Array.isArray(data[key]) ? data[key] : [];
+  return {
+    ...data,
+    [key]: rows.slice(pagination.skip, pagination.skip + pagination.limit),
+    meta: {
+      page: pagination.page,
+      limit: pagination.limit,
+      total: rows.length,
+      totalPages: Math.max(Math.ceil(rows.length / pagination.limit), 1)
+    }
+  };
+};
 
 const reportColumns = {
   sales: [
@@ -68,6 +92,7 @@ const reportColumns = {
     { key: "amount", header: "Monto" },
     { key: "description", header: "Descripcion" },
     { key: "reference", header: "Referencia" },
+    { key: "originLabel", header: "Origen" },
     { key: "transactionDate", header: "Fecha" }
   ],
   cashBox: [
@@ -76,6 +101,7 @@ const reportColumns = {
     { key: "amount", header: "Monto" },
     { key: "description", header: "Descripcion" },
     { key: "reference", header: "Referencia" },
+    { key: "originLabel", header: "Origen" },
     { key: "transactionDate", header: "Fecha" }
   ]
 };
@@ -274,16 +300,22 @@ const getBankData = async (query) => {
     include: { bankAccount: { select: { name: true, bankName: true } } },
     orderBy: { transactionDate: "desc" }
   });
+  const enrichedTransactions = await attachFinancialOrigins(transactions, { prismaClient: prisma, companyId: query.companyId });
   return {
     totalBankBalance: roundMoney(accounts.reduce((sum, account) => sum + Number(account.currentBalance), 0)),
     accounts,
-    transactions: transactions.map((tx) => ({
+    transactions: enrichedTransactions.map((tx) => ({
       id: tx.id,
       bankAccountName: `${tx.bankAccount?.bankName || ""} - ${tx.bankAccount?.name || ""}`,
       type: tx.type,
       amount: Number(tx.amount),
       description: tx.description,
       reference: tx.reference,
+      sourceType: tx.sourceType,
+      sourceId: tx.sourceId,
+      sourceNumber: tx.sourceNumber,
+      origin: tx.origin,
+      originLabel: financialOriginToText(tx.origin),
       transactionDate: tx.transactionDate
     }))
   };
@@ -302,16 +334,22 @@ const getCashBoxData = async (query) => {
     include: { cashBox: { select: { name: true } } },
     orderBy: { transactionDate: "desc" }
   });
+  const enrichedTransactions = await attachFinancialOrigins(transactions, { prismaClient: prisma, companyId: query.companyId });
   return {
     totalCashBoxBalance: roundMoney(cashBoxes.reduce((sum, box) => sum + Number(box.currentBalance), 0)),
     cashBoxes,
-    transactions: transactions.map((tx) => ({
+    transactions: enrichedTransactions.map((tx) => ({
       id: tx.id,
       cashBoxName: tx.cashBox?.name || "",
       type: tx.type,
       amount: Number(tx.amount),
       description: tx.description,
       reference: tx.reference,
+      sourceType: tx.sourceType,
+      sourceId: tx.sourceId,
+      sourceNumber: tx.sourceNumber,
+      origin: tx.origin,
+      originLabel: financialOriginToText(tx.origin),
       transactionDate: tx.transactionDate
     }))
   };
@@ -376,28 +414,28 @@ const sendReport = async (req, res, reportName, format) => {
 };
 
 export const salesReport = async (req, res, next) => {
-  try { res.json(await getSalesData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getSalesData(query), "invoices", query)); } catch (error) { next(error); }
 };
 export const purchasesReport = async (req, res, next) => {
-  try { res.json(await getPurchasesData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getPurchasesData(query), "purchases", query)); } catch (error) { next(error); }
 };
 export const inventoryReport = async (req, res, next) => {
-  try { res.json(await getInventoryData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getInventoryData(query), "products", query)); } catch (error) { next(error); }
 };
 export const accountsReceivableReport = async (req, res, next) => {
-  try { res.json(await getAccountsReceivableData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getAccountsReceivableData(query), "invoices", query)); } catch (error) { next(error); }
 };
 export const accountsPayableReport = async (req, res, next) => {
-  try { res.json(await getAccountsPayableData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getAccountsPayableData(query), "purchases", query)); } catch (error) { next(error); }
 };
 export const expensesReport = async (req, res, next) => {
-  try { res.json(await getExpensesData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getExpensesData(query), "expenses", query)); } catch (error) { next(error); }
 };
 export const bankReport = async (req, res, next) => {
-  try { res.json(await getBankData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getBankData(query), "transactions", query)); } catch (error) { next(error); }
 };
 export const cashBoxReport = async (req, res, next) => {
-  try { res.json(await getCashBoxData(scopedQuery(req))); } catch (error) { next(error); }
+  try { const query = scopedQuery(req); res.json(paginateReportRows(await getCashBoxData(query), "transactions", query)); } catch (error) { next(error); }
 };
 export const accountingReport = async (req, res, next) => {
   try { res.json(await getAccountingData(scopedQuery(req))); } catch (error) { next(error); }
