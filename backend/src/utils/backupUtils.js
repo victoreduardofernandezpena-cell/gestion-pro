@@ -2,20 +2,62 @@ import { execFile } from "child_process";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
+import prisma from "../prisma.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 export const backupsDir = path.resolve(process.env.BACKUP_DIR || path.resolve(__dirname, "../../backups"));
 
-const backupNamePattern = /^backup_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.sql$/;
+const backupNamePattern = /^backup_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.(sql|json)$/;
+const portableBackupModels = [
+  "company",
+  "user",
+  "userCompany",
+  "companySetting",
+  "documentSetting",
+  "taxSetting",
+  "numberingSetting",
+  "systemCategory",
+  "loyaltySetting",
+  "brand",
+  "warehouse",
+  "cashBox",
+  "bankAccount",
+  "client",
+  "supplier",
+  "product",
+  "inventoryMovement",
+  "invoice",
+  "invoiceItem",
+  "payment",
+  "loyaltyAccount",
+  "loyaltyTransaction",
+  "purchase",
+  "purchaseItem",
+  "purchasePayment",
+  "bankTransaction",
+  "cashTransaction",
+  "expense",
+  "accountingAccount",
+  "accountingEntry",
+  "accountingEntryLine",
+  "department",
+  "position",
+  "employee",
+  "attendanceRecord",
+  "payroll",
+  "payrollItem",
+  "employeePayment",
+  "auditLog"
+];
 
 export const ensureBackupsDir = async () => {
   await fs.mkdir(backupsDir, { recursive: true });
 };
 
-export const formatBackupFilename = (date = new Date()) => {
+export const formatBackupFilename = (date = new Date(), extension = "sql") => {
   const stamp = date.toISOString().slice(0, 19).replace("T", "_").replaceAll(":", "-");
-  return `backup_${stamp}.sql`;
+  return `backup_${stamp}.${extension}`;
 };
 
 export const assertValidBackupFilename = (filename) => {
@@ -55,11 +97,21 @@ export const getPgDumpCommand = () => process.env.PG_DUMP_PATH || "pg_dump";
 export const checkBackupAvailability = async () => {
   const command = getPgDumpCommand();
 
-  if (process.env.DISABLE_LOCAL_BACKUPS === "true" || (process.env.NODE_ENV === "production" && process.env.ENABLE_LOCAL_BACKUPS !== "true")) {
+  if (process.env.DISABLE_BACKUPS === "true") {
     return {
       available: false,
       command,
-      message: "Los backups locales estan deshabilitados en produccion. Usa los backups del proveedor de base de datos o habilita ENABLE_LOCAL_BACKUPS=true en un servidor con pg_dump y almacenamiento persistente."
+      mode: "disabled",
+      message: "Los backups estan deshabilitados por configuracion del servidor."
+    };
+  }
+
+  if (process.env.DISABLE_LOCAL_BACKUPS === "true" || (process.env.NODE_ENV === "production" && process.env.ENABLE_LOCAL_BACKUPS !== "true")) {
+    return {
+      available: true,
+      command,
+      mode: "portable-json",
+      message: "Backups portables JSON activos. Para backup SQL con pg_dump, usa un servidor con pg_dump, almacenamiento persistente y ENABLE_LOCAL_BACKUPS=true."
     };
   }
 
@@ -68,9 +120,10 @@ export const checkBackupAvailability = async () => {
       await fs.access(command);
     } catch {
       return {
-        available: false,
+        available: true,
         command,
-        message: `No se encontro pg_dump en la ruta configurada: ${command}. Ajusta PG_DUMP_PATH en el entorno del backend.`
+        mode: "portable-json",
+        message: `No se encontro pg_dump en la ruta configurada: ${command}. Se usara backup portable JSON.`
       };
     }
   }
@@ -79,9 +132,10 @@ export const checkBackupAvailability = async () => {
     execFile(command, ["--version"], (error, stdout) => {
       if (error) {
         resolve({
-          available: false,
+          available: true,
           command,
-          message: "No se encontro pg_dump en el servidor. Instala PostgreSQL client o configura PG_DUMP_PATH en el entorno donde corre el backend."
+          mode: "portable-json",
+          message: "No se encontro pg_dump en el servidor. Se usara backup portable JSON."
         });
         return;
       }
@@ -89,11 +143,39 @@ export const checkBackupAvailability = async () => {
       resolve({
         available: true,
         command,
+        mode: "pg-dump",
         version: stdout?.trim() || "pg_dump disponible",
-        message: "Backups locales disponibles."
+        message: "Backups SQL locales disponibles."
       });
     });
   });
+};
+
+const createPortableJsonBackup = async () => {
+  await ensureBackupsDir();
+  const filename = formatBackupFilename(new Date(), "json");
+  const filePath = path.join(backupsDir, filename);
+  const data = {};
+
+  for (const model of portableBackupModels) {
+    if (prisma[model]?.findMany) {
+      data[model] = await prisma[model].findMany();
+    }
+  }
+
+  const payload = {
+    format: "gestion-pro-portable-json",
+    version: 1,
+    createdAt: new Date().toISOString(),
+    source: "Gestion Pro",
+    note: "Backup portable generado desde Prisma. Para restauracion, importar en una base compatible respetando dependencias.",
+    data
+  };
+
+  await fs.writeFile(filePath, JSON.stringify(payload, null, 2), "utf8");
+  const stats = await fs.stat(filePath);
+  await cleanupOldBackups();
+  return { filename, size: stats.size, createdAt: stats.birthtime, format: "json" };
 };
 
 export const createDatabaseBackup = async () => {
@@ -110,6 +192,9 @@ export const createDatabaseBackup = async () => {
     error.status = 503;
     error.expose = true;
     throw error;
+  }
+  if (availability.mode === "portable-json") {
+    return createPortableJsonBackup();
   }
 
   await ensureBackupsDir();

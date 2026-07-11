@@ -139,6 +139,11 @@ export default function Backups() {
           {backupStatus.message} En despliegues como Vercel o Render, usa backups del proveedor de base de datos o instala/configura `pg_dump` en el entorno del backend.
         </AlertMessage>
       )}
+      {backupStatus?.available && backupStatus.mode === "portable-json" && (
+        <AlertMessage type="info">
+          {backupStatus.message} Este archivo sirve como respaldo de datos descargable desde la app. Para restauraciones completas de produccion, conserva tambien los backups del proveedor de base de datos.
+        </AlertMessage>
+      )}
       {error && <AlertMessage type="error">{error}</AlertMessage>}
       {message && <AlertMessage type="success">{message}</AlertMessage>}
       {loading ? (
