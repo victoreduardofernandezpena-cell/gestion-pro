@@ -56,14 +56,7 @@ export function AuthProvider({ children }) {
   };
 
   const register = async (payload) => {
-    const data = await registerRequest(payload);
-    localStorage.setItem("erp_token", data.token);
-    localStorage.setItem("erp_user", JSON.stringify(data.user));
-    localStorage.setItem("erp_company", JSON.stringify(data.company));
-    setToken(data.token);
-    setUser(data.user);
-    setCompany(data.company);
-    return data.user;
+    return registerRequest(payload);
   };
 
   const logout = () => {

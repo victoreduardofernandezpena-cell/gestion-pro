@@ -10,10 +10,28 @@ const defaults = {
   defaultTaxRate: 18
 };
 
+const serializeCompanySetting = (setting, company) => ({
+  ...setting,
+  companyCode: company?.code || null,
+  companyName: company?.name || setting.businessName
+});
+
 const getOrCreateCompany = async (companyId) => {
+  const company = await prisma.company.findUnique({ where: { id: companyId } });
   const existing = await prisma.companySetting.findUnique({ where: { companyId } });
-  if (existing) return existing;
-  return prisma.companySetting.create({ data: { ...defaults, companyId } });
+  const setting = existing || await prisma.companySetting.create({
+    data: {
+      ...defaults,
+      companyId,
+      businessName: company?.name || defaults.businessName,
+      tradeName: company?.tradeName || defaults.tradeName,
+      rnc: company?.rnc || null,
+      phone: company?.phone || null,
+      email: company?.email || null,
+      address: company?.address || null
+    }
+  });
+  return serializeCompanySetting(setting, company);
 };
 
 export const getCompanySettings = async (req, res, next) => {
@@ -26,7 +44,8 @@ export const getCompanySettings = async (req, res, next) => {
 
 export const updateCompanySettings = async (req, res, next) => {
   try {
-    const current = await getOrCreateCompany(requireCompanyId(req));
+    const companyId = requireCompanyId(req);
+    const current = await getOrCreateCompany(companyId);
     const businessName = req.body.businessName?.trim();
     const defaultTaxRate = Number(req.body.defaultTaxRate ?? 18);
     if (!businessName) return res.status(400).json({ message: "El nombre legal es obligatorio" });
@@ -50,7 +69,8 @@ export const updateCompanySettings = async (req, res, next) => {
       }
     });
     await createAuditLog({ action: "COMPANY_SETTINGS_UPDATED", module: "CONFIGURACION", entityType: "CompanySetting", entityId: setting.id, description: "Configuracion de empresa actualizada", req });
-    res.json(setting);
+    const company = await prisma.company.findUnique({ where: { id: companyId } });
+    res.json(serializeCompanySetting(setting, company));
   } catch (error) {
     next(error);
   }

@@ -13,6 +13,13 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 
 ## Login, sesion y logout
 
+- [ ] Ver opcion Crear negocio cuando `VITE_DISABLE_PUBLIC_REGISTER=false`.
+- [ ] Ocultar Crear negocio cuando `VITE_DISABLE_PUBLIC_REGISTER=true`.
+- [ ] Crear negocio desde cero con nombre, admin, email y contrasena.
+- [ ] Confirmar que el usuario no escribe codigo de compania en el registro.
+- [ ] Confirmar que el sistema muestra codigo generado tipo `MI-TIENDA-1234`.
+- [ ] Copiar codigo generado desde la pantalla de exito.
+- [ ] Volver a login con el codigo generado.
 - [ ] Login con credenciales validas.
 - [ ] Login con email no registrado.
 - [ ] Login con password incorrecto.
@@ -27,10 +34,15 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 ## Multiempresa
 
 - [ ] Cada login exige codigo de compania.
+- [ ] Crear un negocio llamado Realengo y otro llamado DASA sin depender del seed.
+- [ ] Confirmar que cada negocio inicia sin clientes, productos, facturas ni compras demo.
+- [ ] Confirmar que cada negocio recibe almacen principal y caja principal si esos modulos estan activos.
 - [ ] El mismo usuario puede entrar solo a empresas asignadas.
+- [ ] Usuario admin de negocio A no puede entrar al codigo de negocio B si no esta asignado.
 - [ ] El rol se respeta por empresa.
 - [ ] Clientes, productos, facturas, compras, reportes, configuracion y fidelizacion no cruzan datos entre empresas.
 - [ ] Logos, RNC, numeracion y textos de documentos son propios de cada empresa.
+- [ ] Configuracion > Empresa muestra codigo de compania solo lectura y permite copiarlo.
 
 ## Dashboard
 

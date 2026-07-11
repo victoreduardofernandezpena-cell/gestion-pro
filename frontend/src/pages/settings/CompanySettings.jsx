@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import toast from "react-hot-toast";
+import { Copy } from "lucide-react";
 import AlertMessage from "../../components/AlertMessage";
 import Button from "../../components/Button";
 import FormField from "../../components/FormField";
@@ -93,6 +94,15 @@ export default function CompanySettings() {
       setSaving(false);
     }
   };
+  const copyCompanyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(form.companyCode || "");
+      toast.success("Codigo de compania copiado");
+    } catch {
+      toast.error("No fue posible copiar el codigo");
+    }
+  };
+
   if (!form) return <div className="rounded-lg bg-white p-6 shadow-soft">Cargando empresa...</div>;
   const fields = [["businessName","Nombre legal"],["tradeName","Nombre comercial"],["rnc","RNC"],["phone","Telefono"],["email","Email"],["address","Direccion"],["city","Ciudad"],["country","Pais"],["website","Website"],["currency","Moneda"],["currencySymbol","Simbolo moneda"],["defaultTaxRate","Impuesto por defecto"]];
   return (
@@ -103,6 +113,17 @@ export default function CompanySettings() {
       </div>
       <AlertMessage>{error}</AlertMessage>
       {message && <AlertMessage type="success">{message}</AlertMessage>}
+
+      <section className="rounded-2xl border border-warm-300 bg-warm-50 p-5 shadow-warm dark:border-warm-800 dark:bg-warm-900">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.14em] text-warm-700 dark:text-warm-600">Codigo de compania</p>
+            <h2 className="mt-2 select-all text-2xl font-semibold tracking-wide text-slate-950 dark:text-warm-100">{form.companyCode || "-"}</h2>
+            <p className="mt-2 text-sm text-warm-700 dark:text-warm-600">Este codigo se usa para iniciar sesion en esta empresa. No se puede editar desde el panel.</p>
+          </div>
+          <Button type="button" variant="outline" icon={Copy} onClick={copyCompanyCode} disabled={!form.companyCode}>Copiar codigo</Button>
+        </div>
+      </section>
 
       <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
         <h2 className="mb-4 text-lg font-semibold text-slate-950">Logo empresarial</h2>

@@ -10,6 +10,8 @@ export const registerRequest = async (payload) => {
   return data;
 };
 
+export const registerBusiness = registerRequest;
+
 export const profileRequest = async () => {
   const { data } = await api.get("/auth/profile");
   return data;

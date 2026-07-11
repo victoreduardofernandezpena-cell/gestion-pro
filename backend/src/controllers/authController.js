@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import prisma from "../prisma.js";
 import { createAuditLog } from "../utils/auditLogger.js";
+import { generateCompanyCode, normalizeCompanyCode } from "../utils/companyCode.js";
 import { validatePasswordPolicy } from "../utils/passwordPolicy.js";
 
 const serializeCompany = (company) => ({
@@ -11,9 +12,9 @@ const serializeCompany = (company) => ({
   code: company.code
 });
 
-export const normalizeCompanyCode = (value) => value?.trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+export { normalizeCompanyCode };
 
-const ensureCompanyDefaults = async (tx, company) => {
+const ensureCompanyDefaults = async (tx, company, payload = {}) => {
   await tx.companySetting.upsert({
     where: { companyId: company.id },
     update: {},
@@ -25,8 +26,8 @@ const ensureCompanyDefaults = async (tx, company) => {
       phone: company.phone,
       email: company.email,
       address: company.address,
-      city: "Santo Domingo",
-      country: "Republica Dominicana",
+      city: payload.city || "Santo Domingo",
+      country: payload.country || "Republica Dominicana",
       currency: "DOP",
       currencySymbol: "RD$",
       defaultTaxRate: 18
@@ -83,6 +84,26 @@ const ensureCompanyDefaults = async (tx, company) => {
       isActive: true
     }
   });
+
+  await tx.warehouse.create({
+    data: {
+      companyId: company.id,
+      name: "Almacen Principal",
+      code: "MAIN",
+      isActive: true
+    }
+  });
+
+  await tx.cashBox.create({
+    data: {
+      companyId: company.id,
+      name: "Caja Principal",
+      description: "Caja principal creada automaticamente al registrar el negocio.",
+      initialBalance: 0,
+      currentBalance: 0,
+      isActive: true
+    }
+  });
 };
 
 const buildToken = ({ user, company, role }) => {
@@ -117,16 +138,21 @@ export const register = async (req, res, next) => {
     const email = req.body.email?.trim().toLowerCase();
     const password = req.body.password;
     const companyName = req.body.companyName?.trim();
-    const companyCode = normalizeCompanyCode(req.body.companyCode);
+    const tradeName = req.body.tradeName?.trim() || companyName;
+    const rnc = req.body.rnc?.trim() || null;
+    const phone = req.body.phone?.trim() || null;
+    const address = req.body.address?.trim() || null;
+    const city = req.body.city?.trim() || "Santo Domingo";
+    const country = req.body.country?.trim() || "Republica Dominicana";
 
-    if (!name || !email || !password || !companyName || !companyCode) {
-      return res.status(400).json({ message: "Nombre, email, contrasena, empresa y codigo de compania son requeridos" });
+    if (!name || !email || !password || !companyName) {
+      return res.status(400).json({ message: "Nombre, email, contrasena y nombre del negocio son requeridos" });
     }
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return res.status(400).json({ message: "Email invalido" });
     }
-    if (companyCode.length < 3) {
-      return res.status(400).json({ message: "El codigo de compania debe tener al menos 3 caracteres" });
+    if (companyName.length < 2) {
+      return res.status(400).json({ message: "El nombre del negocio debe tener al menos 2 caracteres" });
     }
     const passwordValidation = validatePasswordPolicy(password);
     if (passwordValidation) return res.status(400).json({ message: passwordValidation });
@@ -134,15 +160,17 @@ export const register = async (req, res, next) => {
     const existingUser = await prisma.user.findUnique({ where: { email } });
     if (existingUser) return res.status(409).json({ message: "Ya existe una cuenta con ese email" });
 
-    const existingCompany = await prisma.company.findUnique({ where: { code: companyCode } });
-    if (existingCompany) return res.status(409).json({ message: "Ese codigo de compania ya esta registrado. Usa otro codigo." });
-
     const { user, company, userCompany } = await prisma.$transaction(async (tx) => {
+      const companyCode = await generateCompanyCode(tx, companyName);
       const company = await tx.company.create({
         data: {
           name: companyName,
-          tradeName: companyName,
+          tradeName,
           code: companyCode,
+          rnc,
+          phone,
+          email,
+          address,
           isActive: true
         }
       });
@@ -168,8 +196,19 @@ export const register = async (req, res, next) => {
         }
       });
 
-      await ensureCompanyDefaults(tx, company);
+      await ensureCompanyDefaults(tx, company, { city, country });
       return { user, company, userCompany };
+    });
+
+    await createAuditLog({
+      userId: user.id,
+      companyId: company.id,
+      action: "COMPANY_REGISTERED",
+      module: "AUTH",
+      entityType: "Company",
+      entityId: company.id,
+      description: `Negocio registrado: ${company.name} (${company.code})`,
+      req
     });
 
     await createAuditLog({
@@ -183,18 +222,24 @@ export const register = async (req, res, next) => {
       req
     });
 
-    const token = buildToken({ user, company, role: userCompany.role });
+    await createAuditLog({
+      userId: user.id,
+      companyId: company.id,
+      action: "USER_COMPANY_ASSIGNED",
+      module: "AUTH",
+      entityType: "UserCompany",
+      entityId: userCompany.id,
+      description: `Usuario asignado como admin a ${company.code}`,
+      req
+    });
 
     res.status(201).json({
-      token,
+      message: "Negocio creado correctamente",
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
-        role: userCompany.role,
-        isActive: user.isActive,
-        mustChangePassword: user.mustChangePassword,
-        lastLoginAt: user.lastLoginAt
+        role: userCompany.role
       },
       company: serializeCompany(company)
     });

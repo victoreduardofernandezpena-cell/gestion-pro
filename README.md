@@ -14,6 +14,7 @@ Estado actual: beta real controlada. El sistema esta preparado para pruebas con 
 ## Modulos incluidos
 
 - Login, logout, sesion protegida y multiempresa por codigo de compania.
+- Registro/onboarding de negocios desde la pantalla de login, con codigo de compania generado automaticamente.
 - Dashboard con indicadores segun rol.
 - Clientes.
 - Productos.
@@ -143,7 +144,22 @@ npx prisma db seed
 
 ## Seed
 
-El seed crea empresas limpias y un admin inicial. Ajusta estos valores solo en tu `.env` local o de entorno:
+El seed es solo para desarrollo local o pruebas tecnicas. No es la forma principal de crear negocios reales.
+
+Para uso real o piloto:
+
+1. Abre la pantalla de login.
+2. Usa `Crear negocio`.
+3. Completa los datos del administrador y del negocio.
+4. Guarda el codigo de compania generado.
+5. Inicia sesion con email, contrasena y codigo generado.
+
+Ejemplo:
+
+- Negocio: `Mi Tienda RD`
+- Codigo generado: `MI-TIENDA-4821`
+
+Para desarrollo, el seed puede crear empresas limpias y un admin inicial. Ajusta estos valores solo en tu `.env` local o de entorno:
 
 ```env
 SEED_ADMIN_EMAIL="admin@gestionpro.local"
@@ -155,7 +171,7 @@ SEED_COMPANY_2_NAME="Segundo Negocio"
 SEED_COMPANY_2_CODE="NEGOCIO2"
 ```
 
-Antes de beta real, crea un admin real, cambia la contrasena inicial y desactiva usuarios demo.
+Antes de beta real, crea un negocio real desde `Crear negocio`, cambia la contrasena inicial si aplica y desactiva usuarios demo.
 
 ## Correr local
 
@@ -176,13 +192,14 @@ npm run dev
 ## Como probar
 
 1. Levanta backend y frontend.
-2. Entra con un usuario admin y codigo de compania.
-3. Crea o revisa usuarios para ventas, almacen y contabilidad.
-4. Ejecuta `MANUAL_TESTING_CHECKLIST.md`.
-5. Revisa permisos con URL directa para rutas no permitidas.
-6. Revisa que no aparezcan pantallas en blanco, `undefined`, `NaN` ni errores genericos.
-7. Prueba listados grandes usando busqueda, filtros y paginacion donde el frontend ya lo exponga.
-8. Confirma que pagos y gastos creen movimientos relacionados en banco o caja con su origen.
+2. Crea un negocio desde `Crear negocio` si estas probando el flujo real.
+3. Guarda el codigo generado e inicia sesion con email, contrasena y codigo de compania.
+4. Crea o revisa usuarios para ventas, almacen y contabilidad.
+5. Ejecuta `MANUAL_TESTING_CHECKLIST.md`.
+6. Revisa permisos con URL directa para rutas no permitidas.
+7. Revisa que no aparezcan pantallas en blanco, `undefined`, `NaN` ni errores genericos.
+8. Prueba listados grandes usando busqueda, filtros y paginacion donde el frontend ya lo exponga.
+9. Confirma que pagos y gastos creen movimientos relacionados en banco o caja con su origen.
 
 Pruebas automatizadas backend:
 
@@ -237,6 +254,8 @@ Haz siempre un backup antes de restaurar y prueba la restauracion en un entorno 
 - Configura CORS con `FRONTEND_URL` y `FRONTEND_URLS`.
 - En produccion, configura `DISABLE_PUBLIC_REGISTER=true` si no quieres permitir registro publico.
 - En frontend, configura `VITE_DISABLE_PUBLIC_REGISTER=true` junto con `DISABLE_PUBLIC_REGISTER=true` para ocultar la opcion de registro.
+- El codigo de compania se genera en backend; el frontend no debe enviar ni editar codigos al registrar negocios.
+- Configuracion > Empresa muestra el codigo como solo lectura para copiarlo.
 - Mantiene `JSON_BODY_LIMIT` en un valor bajo salvo que necesites cargas grandes.
 - Usa HTTPS en produccion.
 - Mantiene `DISABLE_LOGIN_RATE_LIMIT=false`.
