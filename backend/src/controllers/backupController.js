@@ -1,9 +1,13 @@
 import fs from "fs/promises";
 import { createAuditLog } from "../utils/auditLogger.js";
-import { createDatabaseBackup, deleteBackupFile, getBackupPath, listBackupFiles } from "../utils/backupUtils.js";
+import { checkBackupAvailability, createDatabaseBackup, deleteBackupFile, getBackupPath, listBackupFiles } from "../utils/backupUtils.js";
 
 export const listBackups = async (req, res) => {
   res.json({ backups: await listBackupFiles() });
+};
+
+export const getBackupStatus = async (req, res) => {
+  res.json({ status: await checkBackupAvailability() });
 };
 
 export const createBackup = async (req, res) => {

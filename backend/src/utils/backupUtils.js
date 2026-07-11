@@ -50,10 +50,64 @@ export const listBackupFiles = async () => {
   return backups.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 };
 
+export const getPgDumpCommand = () => process.env.PG_DUMP_PATH || "pg_dump";
+
+export const checkBackupAvailability = async () => {
+  const command = getPgDumpCommand();
+
+  if (process.env.DISABLE_LOCAL_BACKUPS === "true") {
+    return {
+      available: false,
+      command,
+      message: "Los backups locales estan deshabilitados por configuracion del servidor."
+    };
+  }
+
+  if (process.env.PG_DUMP_PATH) {
+    try {
+      await fs.access(command);
+    } catch {
+      return {
+        available: false,
+        command,
+        message: `No se encontro pg_dump en la ruta configurada: ${command}. Ajusta PG_DUMP_PATH en el entorno del backend.`
+      };
+    }
+  }
+
+  return new Promise((resolve) => {
+    execFile(command, ["--version"], (error, stdout) => {
+      if (error) {
+        resolve({
+          available: false,
+          command,
+          message: "No se encontro pg_dump en el servidor. Instala PostgreSQL client o configura PG_DUMP_PATH en el entorno donde corre el backend."
+        });
+        return;
+      }
+
+      resolve({
+        available: true,
+        command,
+        version: stdout?.trim() || "pg_dump disponible",
+        message: "Backups locales disponibles."
+      });
+    });
+  });
+};
+
 export const createDatabaseBackup = async () => {
   if (!process.env.DATABASE_URL) {
     const error = new Error("DATABASE_URL no esta configurada");
     error.status = 500;
+    error.expose = true;
+    throw error;
+  }
+
+  const availability = await checkBackupAvailability();
+  if (!availability.available) {
+    const error = new Error(availability.message);
+    error.status = 503;
     error.expose = true;
     throw error;
   }
@@ -74,11 +128,11 @@ export const createDatabaseBackup = async () => {
   ];
 
   await new Promise((resolve, reject) => {
-    const pgDumpCommand = process.env.PG_DUMP_PATH || "pg_dump";
+    const pgDumpCommand = getPgDumpCommand();
 
     execFile(pgDumpCommand, args, (error) => {
       if (error) {
-        const backupError = new Error("No se pudo crear el backup. Verifica que pg_dump este instalado y disponible en PATH.");
+        const backupError = new Error("No se pudo crear el backup. Verifica que pg_dump este instalado y que el backend tenga permisos para escribir backups.");
         backupError.status = 503;
         backupError.expose = true;
         backupError.cause = error;

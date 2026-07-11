@@ -10,6 +10,11 @@ export const createBackup = async () => {
   return data.backup;
 };
 
+export const getBackupStatus = async () => {
+  const { data } = await api.get("/backups/status");
+  return data.status;
+};
+
 export const downloadBackup = async (filename) => {
   const { data } = await api.get(`/backups/${filename}/download`, { responseType: "blob" });
   const url = window.URL.createObjectURL(new Blob([data]));

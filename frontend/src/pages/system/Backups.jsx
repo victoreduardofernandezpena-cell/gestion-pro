@@ -5,7 +5,7 @@ import AlertMessage from "../../components/AlertMessage";
 import Button from "../../components/Button";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import DataTable from "../../components/DataTable";
-import { createBackup, deleteBackup, downloadBackup, listBackups, restoreBackup } from "../../services/backupService";
+import { createBackup, deleteBackup, downloadBackup, getBackupStatus, listBackups, restoreBackup } from "../../services/backupService";
 import { getErrorMessage } from "../../utils/errors";
 import { formatDate } from "../../utils/format";
 
@@ -22,13 +22,16 @@ export default function Backups() {
   const [actionLoading, setActionLoading] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [backupStatus, setBackupStatus] = useState(null);
   const [confirmAction, setConfirmAction] = useState(null);
 
   const loadBackups = async () => {
     try {
       setLoading(true);
       setError("");
-      setBackups(await listBackups());
+      const [status, backupRows] = await Promise.all([getBackupStatus(), listBackups()]);
+      setBackupStatus(status);
+      setBackups(backupRows);
     } catch (err) {
       setError(getErrorMessage(err, "No se pudieron cargar los backups"));
     } finally {
@@ -41,6 +44,11 @@ export default function Backups() {
   }, []);
 
   const handleCreate = async () => {
+    if (backupStatus && !backupStatus.available) {
+      setError(backupStatus.message || "Backups locales no disponibles en este servidor.");
+      return;
+    }
+
     try {
       setActionLoading("create");
       setMessage("");
@@ -121,11 +129,16 @@ export default function Backups() {
           <p className="text-sm font-semibold uppercase tracking-wide text-accent">Sistema</p>
           <h1 className="text-3xl font-semibold text-slate-950">Backups</h1>
         </div>
-        <Button onClick={handleCreate} loading={actionLoading === "create"} icon={Archive}>Crear backup</Button>
+        <Button onClick={handleCreate} loading={actionLoading === "create"} disabled={backupStatus && !backupStatus.available} icon={Archive}>Crear backup</Button>
       </div>
       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
         Restaurar backups automaticamente esta deshabilitado por seguridad. El boton registra el intento y muestra la advertencia correspondiente.
       </div>
+      {backupStatus && !backupStatus.available && (
+        <AlertMessage type="warning">
+          {backupStatus.message} En despliegues como Vercel o Render, usa backups del proveedor de base de datos o instala/configura `pg_dump` en el entorno del backend.
+        </AlertMessage>
+      )}
       {error && <AlertMessage type="error">{error}</AlertMessage>}
       {message && <AlertMessage type="success">{message}</AlertMessage>}
       {loading ? (
