@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { attachFinancialOrigins, buildFinancialOrigin, financialOriginToText } from "../src/utils/financialTraceability.js";
+import { attachFinancialOrigins, attachInvoicePaymentTargets, attachPurchasePaymentTargets, buildFinancialOrigin, buildPaymentTarget, financialOriginToText } from "../src/utils/financialTraceability.js";
 
 test("buildFinancialOrigin creates manual movement labels without links", () => {
   const origin = buildFinancialOrigin({ sourceType: "MANUAL_BANK_MOVEMENT" });
@@ -60,4 +60,46 @@ test("attachFinancialOrigins links purchases, expenses and bank transfers", asyn
   assert.equal(transactions[0].origin.path, "/purchases/5");
   assert.equal(transactions[1].origin.path, "/gastos?expenseId=8");
   assert.equal(transactions[2].origin.path, "/banco/2");
+});
+
+test("buildPaymentTarget creates bank and cash payment destinations", () => {
+  assert.deepEqual(buildPaymentTarget({ id: 4, bankAccount: { id: 2, bankName: "Banco Demo", name: "Principal" } }), {
+    type: "BANK",
+    label: "Banco Demo - Principal",
+    path: "/banco/2",
+    transactionId: 4
+  });
+  assert.deepEqual(buildPaymentTarget({ id: 7, cashBox: { id: 3, name: "Caja Principal" } }), {
+    type: "CASH_BOX",
+    label: "Caja Principal",
+    path: "/caja-chica/3",
+    transactionId: 7
+  });
+});
+
+test("attachInvoicePaymentTargets links invoice payments to bank or cash destinations", async () => {
+  const prismaClient = {
+    bankTransaction: { findMany: async () => [{ id: 11, sourceId: 1, bankAccount: { id: 5, bankName: "Banco A", name: "Cuenta Ventas" } }] },
+    cashTransaction: { findMany: async () => [{ id: 12, sourceId: 2, cashBox: { id: 6, name: "Caja Ventas" } }] }
+  };
+
+  const payments = await attachInvoicePaymentTargets([{ id: 1 }, { id: 2 }], { prismaClient, companyId: 9 });
+
+  assert.equal(payments[0].financialTarget.path, "/banco/5");
+  assert.equal(payments[1].financialTarget.path, "/caja-chica/6");
+});
+
+test("attachPurchasePaymentTargets links purchase cash payments by amount, reference and date", async () => {
+  const prismaClient = {
+    cashTransaction: {
+      findMany: async () => [{ id: 20, amount: 300, reference: "REC-1", transactionDate: new Date("2026-07-10"), cashBox: { id: 8, name: "Caja Compras" } }]
+    }
+  };
+
+  const purchase = await attachPurchasePaymentTargets({
+    id: 5,
+    payments: [{ id: 1, method: "CASH", amount: 300, reference: "REC-1", paymentDate: new Date("2026-07-10") }]
+  }, { prismaClient, companyId: 1 });
+
+  assert.equal(purchase.payments[0].financialTarget.path, "/caja-chica/8");
 });

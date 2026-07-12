@@ -148,7 +148,7 @@ export default function PurchaseDetail() {
     { key: "paymentDate", header: "Fecha", render: (row) => formatDate(row.paymentDate) },
     { key: "amount", header: "Monto", render: (row) => money.format(Number(row.amount)) },
     { key: "method", header: "Metodo", render: (row) => paymentMethodLabels[row.method] },
-    { key: "bankAccount", header: "Cuenta", render: (row) => row.bankAccount ? `${row.bankAccount.bankName} - ${row.bankAccount.name}` : "-" },
+    { key: "financialTarget", header: "Origen financiero", render: (row) => row.financialTarget?.path ? <Link to={row.financialTarget.path} className="font-semibold text-accent hover:underline">{row.financialTarget.label}</Link> : row.financialTargetLabel || "-" },
     { key: "reference", header: "Referencia" },
     { key: "notes", header: "Notas" }
   ];

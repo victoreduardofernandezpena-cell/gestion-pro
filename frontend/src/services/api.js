@@ -35,7 +35,11 @@ api.interceptors.response.use(
         window.location.assign("/login");
       }
     }
-    if (error.response?.status === 403 && !["/login", "/unauthorized"].includes(window.location.pathname)) {
+    if (error.response?.status === 403 && error.response?.data?.message?.includes("cambiar tu contrasena")) {
+      if (window.location.pathname !== "/cambiar-contrasena-obligatorio") {
+        window.location.assign("/cambiar-contrasena-obligatorio");
+      }
+    } else if (error.response?.status === 403 && !["/login", "/unauthorized"].includes(window.location.pathname)) {
       window.location.assign("/unauthorized");
     }
     return Promise.reject(error);

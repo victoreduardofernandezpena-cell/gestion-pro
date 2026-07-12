@@ -8,6 +8,8 @@ import { getNextDocumentNumber } from "../utils/numbering.js";
 import { requireCompanyId } from "../utils/companyScope.js";
 import { findManyMaybePaginated } from "../utils/pagination.js";
 import { calculatePaymentState, roundMoney } from "../utils/financialRules.js";
+import { attachPurchasePaymentTargets } from "../utils/financialTraceability.js";
+import { buildDocumentMovement } from "../utils/inventoryTraceability.js";
 
 const purchaseInclude = {
   supplier: { select: { id: true, name: true, rnc: true, phone: true, email: true } },
@@ -88,11 +90,12 @@ export const getPurchase = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de compra invalido" });
+    const companyId = requireCompanyId(req);
 
-    const purchase = await prisma.purchase.findFirst({ where: { id, companyId: requireCompanyId(req) }, include: purchaseInclude });
+    const purchase = await prisma.purchase.findFirst({ where: { id, companyId }, include: purchaseInclude });
     if (!purchase) return res.status(404).json({ message: "Compra no encontrada" });
 
-    res.json(purchase);
+    res.json(await attachPurchasePaymentTargets(purchase, { prismaClient: prisma, companyId }));
   } catch (error) {
     next(error);
   }
@@ -175,11 +178,12 @@ export const createPurchase = async (req, res, next) => {
 
         await tx.inventoryMovement.create({
           data: {
+            ...buildDocumentMovement({ documentNumber: purchaseNumber, reason: `Compra #${purchaseNumber}` }),
             companyId,
             productId: item.productId,
             type: "ENTRADA",
             quantity: item.quantity,
-            reason: `Compra #${purchaseNumber}`
+            cost: item.cost
           }
         });
       }
@@ -240,11 +244,12 @@ export const cancelPurchase = async (req, res, next) => {
         });
         await tx.inventoryMovement.create({
           data: {
+            ...buildDocumentMovement({ documentNumber: existing.purchaseNumber, reason: `Cancelacion Compra #${existing.purchaseNumber}`, note: "Reverso de inventario por cancelacion de compra" }),
             companyId,
             productId: item.productId,
             type: "SALIDA",
             quantity: item.quantity,
-            reason: `Cancelacion Compra #${existing.purchaseNumber}`
+            cost: item.cost
           }
         });
       }

@@ -45,6 +45,11 @@ const uploadsDir = path.resolve(__dirname, "../uploads");
 fs.mkdirSync(path.join(uploadsDir, "logos"), { recursive: true });
 const allowedOrigins = buildAllowedOrigins();
 
+app.disable("x-powered-by");
+if (process.env.TRUST_PROXY) {
+  app.set("trust proxy", process.env.TRUST_PROXY);
+}
+
 app.use(
   cors({
     origin(origin, callback) {

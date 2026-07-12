@@ -10,6 +10,8 @@ import { getBrands } from "../services/brandService";
 import { createProduct, deleteProduct, getProducts, updateProduct } from "../services/productService";
 import { getCategories } from "../services/settingsService";
 import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
+import { useAuth } from "../context/AuthContext";
+import { money } from "../utils/format";
 
 const emptyProduct = {
   code: "",
@@ -37,9 +39,8 @@ const emptyProduct = {
   minimumStock: 0
 };
 
-const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
-
 export default function Products() {
+  const { user } = useAuth();
   const [products, setProducts] = useState([]);
   const [productTypes, setProductTypes] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -51,6 +52,7 @@ export default function Products() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState(DEFAULT_PAGINATION);
+  const canManageProducts = ["admin", "almacen"].includes(user?.role);
 
   const loadProducts = async (query = search, page = pagination.page) => {
     setLoading(true);
@@ -167,7 +169,7 @@ export default function Products() {
         </div>
       )
     }
-  ];
+  ].filter((column) => column.key !== "actions" || canManageProducts);
 
   return (
     <FormPageLayout
@@ -187,7 +189,7 @@ export default function Products() {
     >
       <AlertMessage>{error}</AlertMessage>
 
-      <form onSubmit={submit} className="space-y-6">
+      {canManageProducts && <form onSubmit={submit} className="space-y-6">
         <FormCard
           title={editingId ? "Editar producto" : "Crear producto"}
           description="Completa la informacion principal. Los campos marcados con asterisco son obligatorios."
@@ -290,9 +292,9 @@ export default function Products() {
             {editingId && <Button type="button" variant="danger" icon={X} onClick={resetForm}>Cancelar</Button>}
           </ActionBar>
         </FormCard>
-      </form>
+      </form>}
 
-      <FormCard title="Listado de productos" description="Consulta, edita o elimina productos del catalogo.">
+      <FormCard title="Listado de productos" description={canManageProducts ? "Consulta, edita o elimina productos del catalogo." : "Consulta productos, precios y existencia disponible."}>
         <DataTable columns={columns} rows={products} loading={loading} pagination={pagination} onPageChange={(page) => loadProducts(search, page)} minWidth="980px" emptyTitle="No hay productos" emptyDescription="Crea un producto o ajusta la busqueda." />
       </FormCard>
     </FormPageLayout>

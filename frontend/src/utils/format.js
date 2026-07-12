@@ -1,8 +1,25 @@
-export const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
+const currencyFormatter = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
+const numberFormatter = new Intl.NumberFormat("es-DO", { maximumFractionDigits: 2 });
+
+export const toSafeNumber = (value, fallback = 0) => {
+  const nextValue = Number(value);
+  return Number.isFinite(nextValue) ? nextValue : fallback;
+};
+
+export const toSafeDate = (value) => {
+  if (!value) return null;
+  const nextDate = new Date(value);
+  return Number.isNaN(nextDate.getTime()) ? null : nextDate;
+};
+
+export const money = {
+  format: (value) => currencyFormatter.format(toSafeNumber(value))
+};
 
 export const formatDate = (value) => {
-  if (!value) return "";
-  return new Date(value).toLocaleDateString("es-DO", {
+  const date = toSafeDate(value);
+  if (!date) return "-";
+  return date.toLocaleDateString("es-DO", {
     year: "numeric",
     month: "short",
     day: "2-digit"
@@ -10,8 +27,9 @@ export const formatDate = (value) => {
 };
 
 export const formatDateTime = (value) => {
-  if (!value) return "";
-  return new Date(value).toLocaleString("es-DO", {
+  const date = toSafeDate(value);
+  if (!date) return "-";
+  return date.toLocaleString("es-DO", {
     year: "numeric",
     month: "short",
     day: "2-digit",
@@ -20,7 +38,7 @@ export const formatDateTime = (value) => {
   });
 };
 
-export const formatNumber = (value) => new Intl.NumberFormat("es-DO", { maximumFractionDigits: 2 }).format(Number(value || 0));
+export const formatNumber = (value) => numberFormatter.format(toSafeNumber(value));
 
 export const statusLabels = {
   PENDING: "Pendiente",

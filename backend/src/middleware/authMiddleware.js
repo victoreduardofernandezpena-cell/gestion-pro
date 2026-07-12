@@ -1,5 +1,6 @@
 import jwt from "jsonwebtoken";
 import prisma from "../prisma.js";
+import { validateJwtSecret } from "../utils/security.js";
 
 export const forcedPasswordAllowedPaths = ["/api/auth/profile", "/api/auth/change-forced-password"];
 
@@ -20,12 +21,8 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ message: "Token requerido" });
     }
 
-    if (!process.env.JWT_SECRET) {
-      return res.status(500).json({ message: "JWT_SECRET no esta configurado en el servidor" });
-    }
-
     const token = authHeader.split(" ")[1];
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
+    const payload = jwt.verify(token, validateJwtSecret());
     const userId = payload.userId || payload.id;
     const companyId = payload.companyId;
 
@@ -75,6 +72,9 @@ export const authenticate = async (req, res, next) => {
 
     next();
   } catch (error) {
+    if (error.status >= 500) {
+      return res.status(error.status).json({ message: error.message });
+    }
     return res.status(401).json({ message: "Token invalido o expirado" });
   }
 };

@@ -47,25 +47,32 @@ JWT_SECRET="GENERAR_UN_SECRETO_LARGO_DE_32+_CARACTERES"
 JWT_EXPIRES_IN="8h"
 FRONTEND_URL="https://TU_FRONTEND.vercel.app"
 FRONTEND_URLS="https://TU_FRONTEND.vercel.app"
+TRUST_PROXY=1
 LOGIN_RATE_LIMIT_WINDOW_MS=900000
 LOGIN_RATE_LIMIT_MAX=10
 DISABLE_LOGIN_RATE_LIMIT=false
-SEED_ADMIN_EMAIL="admin@cliente.com"
-SEED_ADMIN_PASSWORD="ClaveTemporalSegura123"
-SEED_ADMIN_NAME="Administrador"
-SEED_COMPANY_1_NAME="Empresa 1"
-SEED_COMPANY_1_CODE="EMPRESA1"
-SEED_COMPANY_2_NAME="Empresa 2"
-SEED_COMPANY_2_CODE="EMPRESA2"
+DISABLE_PUBLIC_REGISTER=false
+ENABLE_LOCAL_BACKUPS=false
+DISABLE_LOCAL_BACKUPS=true
 ```
 
-Despues del primer deploy correcto, ejecutar el seed una sola vez desde Render Shell:
+Flujo recomendado para piloto real:
+
+1. Dejar `DISABLE_PUBLIC_REGISTER=false` temporalmente.
+2. Crear el negocio desde la pantalla de login.
+3. Guardar el codigo generado.
+4. Entrar con email, contrasena y codigo.
+5. Cuando el negocio este creado, cambiar Render a `DISABLE_PUBLIC_REGISTER=true`.
+6. Cambiar Vercel a `VITE_DISABLE_PUBLIC_REGISTER=true`.
+7. Redeploy frontend y backend.
+
+El seed queda solo como alternativa tecnica. Si decides usarlo, ejecutarlo una sola vez desde Render Shell:
 
 ```bash
 npm run prisma:seed
 ```
 
-El seed crea el admin real, dos empresas limpias y marca `mustChangePassword=true`, por lo que el primer login obliga a cambiar la contrasena.
+El seed puede crear empresas de prueba y un admin inicial. No lo uses encima de una base real con datos sin revisar primero.
 
 ## 3. Vercel Free frontend
 
@@ -82,6 +89,7 @@ Variable en Vercel:
 
 ```env
 VITE_API_URL="https://TU_BACKEND.onrender.com/api"
+VITE_DISABLE_PUBLIC_REGISTER=false
 ```
 
 Cuando Vercel entregue la URL final, volver a Render y actualizar:
@@ -97,17 +105,14 @@ Luego redeploy del backend.
 
 1. Abrir `https://TU_BACKEND.onrender.com/api/health` y confirmar `{"status":"ok"}`.
 2. Abrir el frontend en Vercel.
-3. Iniciar sesion con:
-   - Email: `SEED_ADMIN_EMAIL`
-   - Contrasena: `SEED_ADMIN_PASSWORD`
-   - Codigo: `EMPRESA1`
-4. Confirmar que redirige a cambio obligatorio de contrasena.
-5. Cambiar la contrasena.
-6. Cerrar sesion.
-7. Entrar con la nueva contrasena y codigo `EMPRESA2`.
-8. Crear datos simples en una empresa y confirmar que no aparecen en la otra.
-9. Subir un logo pequeno y confirmar que se ve en configuracion y PDF.
-10. Confirmar que reportes CSV/PDF descargan.
+3. Crear un negocio desde la pantalla de login.
+4. Copiar el codigo generado y guardarlo en un lugar seguro.
+5. Iniciar sesion con email, contrasena y codigo generado.
+6. Crear un segundo negocio solo si necesitas probar multiempresa.
+7. Crear datos simples en una empresa y confirmar que no aparecen en la otra.
+8. Subir un logo pequeno y confirmar que se ve en configuracion y PDF.
+9. Confirmar que reportes CSV/PDF descargan.
+10. Desactivar el registro publico en Render y Vercel despues de crear el negocio piloto.
 
 ## 5. Backups en modo piloto gratis
 
@@ -117,10 +122,11 @@ Para el piloto:
 
 - Usar backups/exportaciones desde Supabase Dashboard.
 - Descargar un backup manual antes de cada sesion importante con el cliente.
+- Usar `Sistema > Backups` solo como respaldo adicional portable JSON.
 - Mantener los logos pequenos porque se guardan dentro de PostgreSQL.
 - No usar el almacenamiento local `backend/backups` como respaldo principal en produccion.
 
-La pantalla `Sistema > Backups` puede servir en local o en un servidor con `pg_dump`, pero en Render Free debe tratarse como no confiable para respaldo formal.
+La pantalla `Sistema > Backups` puede generar JSON portable cuando no hay `pg_dump`, pero en Render Free debe tratarse como apoyo, no como respaldo formal.
 
 ## 6. Limitaciones del plan gratis
 
@@ -139,11 +145,11 @@ La pantalla `Sistema > Backups` puede servir en local o en un servidor con `pg_d
 - [ ] `JWT_SECRET` real configurado.
 - [ ] Backend desplegado y `/api/health` responde.
 - [ ] Migraciones Prisma aplicadas por Render.
-- [ ] Seed ejecutado una sola vez.
+- [ ] Negocio piloto creado desde login o seed ejecutado una sola vez si se eligio ese flujo.
 - [ ] Frontend desplegado en Vercel.
 - [ ] `VITE_API_URL` apunta a Render.
 - [ ] `FRONTEND_URL` y `FRONTEND_URLS` apuntan a Vercel.
-- [ ] Login probado con `EMPRESA1` y `EMPRESA2`.
-- [ ] Cambio obligatorio de contrasena probado.
+- [ ] Login probado con codigo generado.
+- [ ] Registro publico desactivado despues de crear el negocio si no debe quedar abierto.
 - [ ] Logo probado.
 - [ ] Backup manual descargado desde Supabase.

@@ -8,12 +8,47 @@ import { attachFinancialOrigins, financialOriginToText } from "../utils/financia
 const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 const today = () => new Date().toISOString().slice(0, 10);
 const roundMoney = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+export const MAX_REPORT_RANGE_DAYS = 366;
+export const MAX_REPORT_EXPORT_ROWS = 5000;
+
+const reportError = (message, status = 400) => {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+};
+
+const parseDateOnly = (value, label) => {
+  if (!value) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value))) {
+    throw reportError(`${label} debe tener formato YYYY-MM-DD`);
+  }
+  const date = new Date(`${value}T00:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) {
+    throw reportError(`${label} no es una fecha valida`);
+  }
+  return date;
+};
+
+export const prepareReportQuery = (query = {}) => {
+  const startDateValue = parseDateOnly(query.startDate, "La fecha desde");
+  const endDateValue = parseDateOnly(query.endDate, "La fecha hasta");
+  if (startDateValue && endDateValue) {
+    if (startDateValue > endDateValue) {
+      throw reportError("La fecha desde no puede ser mayor que la fecha hasta");
+    }
+    const days = Math.floor((endDateValue - startDateValue) / 86400000) + 1;
+    if (days > MAX_REPORT_RANGE_DAYS) {
+      throw reportError(`El rango maximo de reportes es de ${MAX_REPORT_RANGE_DAYS} dias`);
+    }
+  }
+  return { ...query, __startDate: startDateValue, __endDate: endDateValue };
+};
 
 const dateFilter = (field, query) => {
   const filter = {};
-  if (query.startDate) filter.gte = new Date(query.startDate);
-  if (query.endDate) {
-    const end = new Date(query.endDate);
+  if (query.__startDate) filter.gte = query.__startDate;
+  if (query.__endDate) {
+    const end = new Date(query.__endDate);
     end.setHours(23, 59, 59, 999);
     filter.lte = end;
   }
@@ -25,7 +60,7 @@ const intQuery = (value) => {
   return Number.isInteger(number) && number > 0 ? number : null;
 };
 
-const scopedQuery = (req) => ({ ...req.query, companyId: requireCompanyId(req) });
+const scopedQuery = (req) => prepareReportQuery({ ...req.query, companyId: requireCompanyId(req) });
 
 const reportPagination = (query) => {
   if (query.page === undefined && query.limit === undefined) return null;
@@ -405,6 +440,9 @@ const sendReport = async (req, res, reportName, format) => {
   const config = reportMap[reportName];
   const data = await config.getData(scopedQuery(req));
   const rows = config.rows(data);
+  if (rows.length > MAX_REPORT_EXPORT_ROWS) {
+    throw reportError(`El reporte tiene ${rows.length} filas. Aplica filtros de fecha u otros filtros para exportar maximo ${MAX_REPORT_EXPORT_ROWS} filas.`, 413);
+  }
   const totals = config.totals(data);
   const filename = `reporte_${reportName.replaceAll("-", "_")}_${today()}.${format === "excel" ? "xlsx" : "pdf"}`;
   if (format === "excel") return sendExcel(res, { filename, title: config.title, filters: req.query, totals, rows });

@@ -5,10 +5,12 @@ import AlertMessage from "../components/AlertMessage";
 import DataTable from "../components/DataTable";
 import FormField from "../components/FormField";
 import { getErrorMessage } from "../utils/errors";
+import { useAuth } from "../context/AuthContext";
 
 const emptyClient = { name: "", rnc: "", phone: "", email: "", address: "" };
 
 export default function Clients() {
+  const { user } = useAuth();
   const [clients, setClients] = useState([]);
   const [form, setForm] = useState(emptyClient);
   const [editingId, setEditingId] = useState(null);
@@ -17,6 +19,8 @@ export default function Clients() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, totalPages: 1 });
+  const canManageClients = ["admin", "ventas"].includes(user?.role);
+  const canDeleteClients = user?.role === "admin";
 
   const loadClients = async (query = search, page = pagination.page) => {
     setLoading(true);
@@ -79,12 +83,12 @@ export default function Clients() {
       align: "right",
       render: (client) => (
         <div className="flex justify-end gap-2">
-          <button onClick={() => edit(client)} className="rounded-lg border border-slate-200 p-2 text-slate-600" aria-label="Editar"><Edit2 size={16} /></button>
-          <button onClick={() => remove(client.id)} className="rounded-lg border border-rose-200 p-2 text-rose-600" aria-label="Eliminar"><Trash2 size={16} /></button>
+          {canManageClients && <button onClick={() => edit(client)} className="rounded-lg border border-slate-200 p-2 text-slate-600" aria-label="Editar"><Edit2 size={16} /></button>}
+          {canDeleteClients && <button onClick={() => remove(client.id)} className="rounded-lg border border-rose-200 p-2 text-rose-600" aria-label="Eliminar"><Trash2 size={16} /></button>}
         </div>
       )
     }
-  ];
+  ].filter((column) => column.key !== "actions" || canManageClients || canDeleteClients);
 
   return (
     <div className="space-y-6">
@@ -107,8 +111,8 @@ export default function Clients() {
 
       <AlertMessage>{error}</AlertMessage>
 
-      <section className="grid gap-6 xl:grid-cols-[360px_1fr]">
-        <form onSubmit={submit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
+      <section className={`grid gap-6 ${canManageClients ? "xl:grid-cols-[360px_1fr]" : ""}`}>
+        {canManageClients && <form onSubmit={submit} className="rounded-lg border border-slate-200 bg-white p-5 shadow-soft">
           <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold"><Plus size={18} />{editingId ? "Editar cliente" : "Crear cliente"}</h2>
           {[
             ["name", "Nombre"],
@@ -123,7 +127,7 @@ export default function Clients() {
             <button disabled={saving} className="rounded-lg bg-accent px-4 py-2 font-semibold text-white disabled:opacity-60">{saving ? "Guardando..." : "Guardar"}</button>
             {editingId && <button type="button" onClick={() => { setEditingId(null); setForm(emptyClient); }} className="rounded-lg border border-slate-300 px-4 py-2">Cancelar</button>}
           </div>
-        </form>
+        </form>}
 
         {loading ? (
           <div className="rounded-lg bg-white p-6 shadow-soft">Cargando clientes...</div>

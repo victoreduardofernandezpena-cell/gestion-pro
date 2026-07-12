@@ -9,7 +9,7 @@ export const getReport = async (name, params = {}) => {
 };
 
 export const exportReport = async (name, format, params = {}) => {
-  const extension = format === "excel" ? "csv" : "pdf";
+  const extension = format === "excel" ? "xlsx" : "pdf";
   await downloadFile(`/reports/${name}/export/${format}`, `reporte_${name.replaceAll("-", "_")}_${today()}.${extension}`, params);
 };
 

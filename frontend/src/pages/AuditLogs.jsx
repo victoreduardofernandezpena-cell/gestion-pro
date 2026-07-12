@@ -5,7 +5,7 @@ import FormField from "../components/FormField";
 import { getAuditLogs } from "../services/auditService";
 import { getUsers } from "../services/userService";
 import { getErrorMessage } from "../utils/errors";
-import { formatDate } from "../utils/format";
+import { formatDateTime } from "../utils/format";
 import { normalizePaginatedResult } from "../utils/pagination";
 
 export default function AuditLogs() {
@@ -35,7 +35,7 @@ export default function AuditLogs() {
   useEffect(() => { load(); }, []);
 
   const columns = [
-    { key: "createdAt", header: "Fecha", render: (row) => `${formatDate(row.createdAt)} ${new Date(row.createdAt).toLocaleTimeString("es-DO")}` },
+    { key: "createdAt", header: "Fecha", render: (row) => formatDateTime(row.createdAt) },
     { key: "user", header: "Usuario", render: (row) => row.user?.email || "-" },
     { key: "action", header: "Accion", className: "font-medium" },
     { key: "module", header: "Modulo" },

@@ -8,6 +8,8 @@ import { getNextDocumentNumber } from "../utils/numbering.js";
 import { getActiveLoyaltySetting, roundMoney } from "../utils/loyaltyCalculator.js";
 import { requireCompanyId } from "../utils/companyScope.js";
 import { findManyMaybePaginated } from "../utils/pagination.js";
+import { attachInvoicePaymentTargets } from "../utils/financialTraceability.js";
+import { buildDocumentMovement } from "../utils/inventoryTraceability.js";
 
 const invoiceInclude = {
   client: { select: { id: true, name: true, rnc: true, phone: true, email: true } },
@@ -143,14 +145,15 @@ export const getInvoice = async (req, res, next) => {
   try {
     const id = parseIdParam(req.params.id);
     if (!id) return res.status(400).json({ message: "ID de factura invalido" });
+    const companyId = requireCompanyId(req);
 
     const invoice = await prisma.invoice.findFirst({
-      where: { id, companyId: requireCompanyId(req) },
+      where: { id, companyId },
       include: invoiceInclude
     });
 
     if (!invoice) return res.status(404).json({ message: "Factura no encontrada" });
-    res.json(invoice);
+    res.json({ ...invoice, payments: await attachInvoicePaymentTargets(invoice.payments, { prismaClient: prisma, companyId }) });
   } catch (error) {
     next(error);
   }
@@ -281,11 +284,12 @@ export const createInvoice = async (req, res, next) => {
 
         await tx.inventoryMovement.create({
           data: {
+            ...buildDocumentMovement({ documentNumber: invoiceNumber, reason: `Factura #${invoiceNumber}` }),
             companyId,
             productId: item.productId,
             type: "SALIDA",
             quantity: item.quantity,
-            reason: `Factura #${invoiceNumber}`
+            cost: product.cost
           }
         });
       }
@@ -410,7 +414,7 @@ export const duplicateInvoice = async (req, res, next) => {
         });
         await tx.product.update({ where: { id: item.productId }, data: { stock: { decrement: item.quantity } } });
         await tx.inventoryMovement.create({
-          data: { companyId, productId: item.productId, type: "SALIDA", quantity: item.quantity, reason: `Factura duplicada #${invoiceNumber}`, document: invoiceNumber, reference: source.invoiceNumber }
+          data: { ...buildDocumentMovement({ documentNumber: invoiceNumber, referenceNumber: source.invoiceNumber, reason: `Factura duplicada #${invoiceNumber}` }), companyId, productId: item.productId, type: "SALIDA", quantity: item.quantity, cost: product.cost }
         });
       }
 
@@ -485,11 +489,11 @@ export const cancelInvoice = async (req, res, next) => {
         });
         await tx.inventoryMovement.create({
           data: {
+            ...buildDocumentMovement({ documentNumber: existing.invoiceNumber, reason: `Cancelacion Factura #${existing.invoiceNumber}`, note: "Reverso de inventario por cancelacion de factura" }),
             companyId,
             productId: item.productId,
             type: "ENTRADA",
-            quantity: item.quantity,
-            reason: `Cancelacion Factura #${existing.invoiceNumber}`
+            quantity: item.quantity
           }
         });
       }

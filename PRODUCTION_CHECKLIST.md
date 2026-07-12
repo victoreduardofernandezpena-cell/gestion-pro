@@ -12,6 +12,7 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 - [ ] Configurar `VITE_DISABLE_PUBLIC_REGISTER=true` si el registro publico debe quedar oculto.
 - [ ] Configurar `FRONTEND_URL` con el dominio real del frontend.
 - [ ] Configurar `FRONTEND_URLS` si hay mas de un origen permitido.
+- [ ] Configurar `TRUST_PROXY=1` si el backend corre detras de Render, Nginx, Railway, proxy o balanceador.
 - [ ] Mantener `DISABLE_LOGIN_RATE_LIMIT=false`.
 - [ ] Configurar `DISABLE_PUBLIC_REGISTER=true` salvo que el registro publico sea parte del piloto.
 - [ ] Configurar `JSON_BODY_LIMIT` con un limite conservador.
@@ -65,12 +66,16 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 
 - [ ] Configurar `BACKUP_DIR` fuera del codigo o en almacenamiento persistente.
 - [ ] Configurar `BACKUP_RETENTION_DAYS`.
+- [ ] Definir modo de backup de la app: SQL local con `pg_dump`, portable JSON o deshabilitado.
+- [ ] Usar backup del proveedor de PostgreSQL como respaldo principal en Render/Vercel/Supabase.
+- [ ] Confirmar que backup portable JSON descarga correctamente si no hay `pg_dump`.
 - [ ] Confirmar que `backend/backups` no se versiona.
 - [ ] Confirmar que `backend/uploads` no se versiona.
 - [ ] Respaldar base de datos.
 - [ ] Respaldar logos y archivos cargados.
 - [ ] Probar descarga de backup desde la interfaz admin.
 - [ ] Documentar procedimiento de restauracion manual.
+- [ ] Probar restauracion del proveedor en una base separada antes de depender de ese backup.
 
 ## Pruebas funcionales obligatorias
 
@@ -107,12 +112,14 @@ Checklist para preparar un beta real o despliegue controlado. No uses datos real
 - [ ] Revisar logs del servidor sin errores repetidos.
 - [ ] Confirmar que no quedan pantallas en blanco.
 - [ ] Confirmar que no aparecen `undefined` ni `NaN`.
+- [ ] Confirmar que un error inesperado muestra una pantalla de recuperacion y no deja la app en blanco.
 
 ## Deploy
 
 - [ ] Documentar comandos de deploy backend.
 - [ ] Documentar comandos de deploy frontend.
 - [ ] Documentar variables necesarias en la plataforma.
+- [ ] Documentar orden seguro de despliegue y rollback.
 - [ ] Configurar logs del servidor o plataforma.
 - [ ] Configurar reinicio automatico del backend.
 - [ ] No hacer deploy destructivo sobre base real.

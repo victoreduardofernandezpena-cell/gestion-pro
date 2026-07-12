@@ -1,4 +1,5 @@
 import { Toaster } from "react-hot-toast";
+import AppErrorBoundary from "./components/AppErrorBoundary.jsx";
 import { useTheme } from "./context/ThemeContext.jsx";
 import AppRoutes from "./routes/AppRoutes.jsx";
 
@@ -7,7 +8,7 @@ export default function App() {
   const isDark = theme === "dark";
 
   return (
-    <>
+    <AppErrorBoundary>
       <AppRoutes />
       <Toaster
         position="top-right"
@@ -22,6 +23,6 @@ export default function App() {
           }
         }}
       />
-    </>
+    </AppErrorBoundary>
   );
 }

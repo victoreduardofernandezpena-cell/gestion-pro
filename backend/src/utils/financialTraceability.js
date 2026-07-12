@@ -52,6 +52,115 @@ export const financialOriginToText = (origin) => {
   return [origin.label, origin.documentLabel].filter(Boolean).join(" - ");
 };
 
+export const buildPaymentTarget = (transaction) => {
+  if (!transaction) return null;
+  if (transaction.bankAccount) {
+    return {
+      type: "BANK",
+      label: `${transaction.bankAccount.bankName || "Banco"} - ${transaction.bankAccount.name}`,
+      path: `/banco/${transaction.bankAccount.id}`,
+      transactionId: transaction.id
+    };
+  }
+  if (transaction.cashBox) {
+    return {
+      type: "CASH_BOX",
+      label: transaction.cashBox.name,
+      path: `/caja-chica/${transaction.cashBox.id}`,
+      transactionId: transaction.id
+    };
+  }
+  return null;
+};
+
+export const paymentTargetToText = (target) => target?.label || "Sin destino financiero";
+
+const paymentMatchKey = (payment) => {
+  const amount = Number(payment.amount || 0).toFixed(2);
+  const reference = payment.reference || "";
+  const date = payment.paymentDate ? new Date(payment.paymentDate).toISOString().slice(0, 10) : "";
+  return `${amount}|${reference}|${date}`;
+};
+
+const transactionMatchKey = (transaction) => {
+  const amount = Number(transaction.amount || 0).toFixed(2);
+  const reference = transaction.reference || "";
+  const date = transaction.transactionDate ? new Date(transaction.transactionDate).toISOString().slice(0, 10) : "";
+  return `${amount}|${reference}|${date}`;
+};
+
+const takeFirstByKey = (map, key) => {
+  const items = map.get(key) || [];
+  const [item, ...rest] = items;
+  if (rest.length) map.set(key, rest);
+  else map.delete(key);
+  return item || null;
+};
+
+export const attachInvoicePaymentTargets = async (payments, { prismaClient, companyId }) => {
+  const paymentIds = payments.map((payment) => Number(payment.id)).filter((id) => Number.isInteger(id) && id > 0);
+  if (!paymentIds.length) return payments;
+
+  const [bankTransactions, cashTransactions] = await Promise.all([
+    prismaClient.bankTransaction.findMany({
+      where: { companyId, sourceType: "INVOICE_PAYMENT", sourceId: { in: paymentIds } },
+      include: { bankAccount: { select: { id: true, name: true, bankName: true } } }
+    }),
+    prismaClient.cashTransaction.findMany({
+      where: { companyId, sourceType: "INVOICE_PAYMENT", sourceId: { in: paymentIds } },
+      include: { cashBox: { select: { id: true, name: true } } }
+    })
+  ]);
+
+  const targetByPaymentId = new Map();
+  for (const transaction of [...bankTransactions, ...cashTransactions]) {
+    targetByPaymentId.set(Number(transaction.sourceId), buildPaymentTarget(transaction));
+  }
+
+  return payments.map((payment) => {
+    const target = targetByPaymentId.get(Number(payment.id)) || null;
+    return { ...payment, financialTarget: target, financialTargetLabel: paymentTargetToText(target) };
+  });
+};
+
+export const attachPurchasePaymentTargets = async (purchase, { prismaClient, companyId }) => {
+  const payments = purchase?.payments || [];
+  if (!payments.length) return purchase;
+
+  const cashPayments = payments.filter((payment) => payment.method === "CASH");
+  if (!cashPayments.length) {
+    return {
+      ...purchase,
+      payments: payments.map((payment) => {
+        const target = buildPaymentTarget(payment.bankTransaction || null) || (payment.bankAccount ? { type: "BANK", label: `${payment.bankAccount.bankName || "Banco"} - ${payment.bankAccount.name}`, path: `/banco/${payment.bankAccount.id}`, transactionId: payment.bankTransactionId || null } : null);
+        return { ...payment, financialTarget: target, financialTargetLabel: paymentTargetToText(target) };
+      })
+    };
+  }
+
+  const cashTransactions = await prismaClient.cashTransaction.findMany({
+    where: { companyId, sourceType: "PURCHASE_PAYMENT", sourceId: purchase.id },
+    include: { cashBox: { select: { id: true, name: true } } },
+    orderBy: { transactionDate: "desc" }
+  });
+
+  const cashByKey = cashTransactions.reduce((map, transaction) => {
+    const key = transactionMatchKey(transaction);
+    map.set(key, [...(map.get(key) || []), transaction]);
+    return map;
+  }, new Map());
+
+  return {
+    ...purchase,
+    payments: payments.map((payment) => {
+      const bankTarget = buildPaymentTarget(payment.bankTransaction || null) || (payment.bankAccount ? { type: "BANK", label: `${payment.bankAccount.bankName || "Banco"} - ${payment.bankAccount.name}`, path: `/banco/${payment.bankAccount.id}`, transactionId: payment.bankTransactionId || null } : null);
+      const cashTarget = payment.method === "CASH" ? buildPaymentTarget(takeFirstByKey(cashByKey, paymentMatchKey(payment))) : null;
+      const target = bankTarget || cashTarget;
+      return { ...payment, financialTarget: target, financialTargetLabel: paymentTargetToText(target) };
+    })
+  };
+};
+
 export const resolveFinancialOriginMap = async (transactions, { prismaClient, companyId }) => {
   const originMap = new Map();
   const invoicePaymentIds = uniqueIdsByType(transactions, "INVOICE_PAYMENT");

@@ -8,8 +8,8 @@ const router = Router();
 router.use(authenticate);
 router.get("/", authorizeRoles("admin", "ventas"), listClients);
 router.get("/:id", authorizeRoles("admin", "ventas"), getClient);
-router.post("/", authorizeRoles("admin"), createClient);
-router.put("/:id", authorizeRoles("admin"), updateClient);
+router.post("/", authorizeRoles("admin", "ventas"), createClient);
+router.put("/:id", authorizeRoles("admin", "ventas"), updateClient);
 router.delete("/:id", authorizeRoles("admin"), deleteClient);
 
 export default router;

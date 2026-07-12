@@ -72,3 +72,12 @@ test("unknown API routes return clear 404", async () => {
     assert.equal(body.message, "Ruta no encontrada. Verifica la direccion o el recurso solicitado.");
   });
 });
+
+test("API responses do not expose Express technology header", async () => {
+  await withServer(async (baseUrl) => {
+    const response = await fetch(`${baseUrl}/api/health`);
+
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.has("x-powered-by"), false);
+  });
+});

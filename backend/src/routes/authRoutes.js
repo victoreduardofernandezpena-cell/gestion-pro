@@ -1,17 +1,14 @@
 import { Router } from "express";
 import rateLimit from "express-rate-limit";
+import dotenv from "dotenv";
 import { changeForcedPassword, login, profile, register } from "../controllers/authController.js";
 import { authenticate } from "../middleware/authMiddleware.js";
+import { buildLoginRateLimitConfig, shouldDisableLoginRateLimit } from "../utils/security.js";
 
+dotenv.config();
 const router = Router();
-const loginLimiter = rateLimit({
-  windowMs: Number(process.env.LOGIN_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000),
-  limit: Number(process.env.LOGIN_RATE_LIMIT_MAX || 10),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { message: "Demasiados intentos de login. Intenta nuevamente mas tarde." }
-});
-const loginMiddlewares = process.env.DISABLE_LOGIN_RATE_LIMIT === "true" ? [] : [loginLimiter];
+const loginLimiter = rateLimit(buildLoginRateLimitConfig());
+const loginMiddlewares = shouldDisableLoginRateLimit() ? [] : [loginLimiter];
 
 router.post("/login", ...loginMiddlewares, login);
 router.post("/register", ...loginMiddlewares, register);

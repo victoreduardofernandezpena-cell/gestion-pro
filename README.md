@@ -9,7 +9,7 @@ Estado actual: beta real controlada. El sistema esta preparado para pruebas con 
 - Frontend: React, Vite, TailwindCSS, React Router, Axios, Recharts, Lucide, Framer Motion.
 - Backend: Node.js, Express, Prisma, PostgreSQL, JWT, Helmet, CORS y rate limit de login.
 - Documentos: PDF de factura/compra y exportaciones de reportes cuando aplica.
-- Persistencia: PostgreSQL, `backend/uploads` para logos/archivos y `backend/backups` para respaldos locales.
+- Persistencia: PostgreSQL, `backend/uploads` para logos/archivos y `backend/backups` para respaldos locales o portables.
 
 ## Modulos incluidos
 
@@ -30,6 +30,8 @@ Estado actual: beta real controlada. El sistema esta preparado para pruebas con 
 - Sistema, estado y backups para admin.
 - Listados principales con soporte backend para paginacion, busqueda y filtros.
 - Trazabilidad financiera basica entre pagos, gastos, banco y caja chica.
+- Trazabilidad de inventario por documento de factura, compra, reverso o ajuste manual.
+- Barrera visual de errores para evitar pantallas completamente en blanco.
 
 ## Roles beta
 
@@ -89,12 +91,14 @@ DISABLE_PUBLIC_REGISTER=false
 LOGIN_RATE_LIMIT_WINDOW_MS=900000
 LOGIN_RATE_LIMIT_MAX=10
 DISABLE_LOGIN_RATE_LIMIT=false
+TRUST_PROXY=1
 FRONTEND_URL="http://localhost:5173"
 FRONTEND_URLS="http://localhost:5173,http://127.0.0.1:5173"
 PG_DUMP_PATH="C:/Program Files/PostgreSQL/18/bin/pg_dump.exe"
 BACKUP_DIR="./backups"
 BACKUP_RETENTION_DAYS=30
 ENABLE_LOCAL_BACKUPS=false
+DISABLE_BACKUPS=false
 DISABLE_LOCAL_BACKUPS=false
 ```
 
@@ -235,14 +239,27 @@ npm start
 
 ## Backups
 
-En produccion, los backups locales desde la app estan deshabilitados por defecto. Para Vercel, Render u otro entorno sin almacenamiento persistente, usa los backups del proveedor de la base de datos.
+En produccion, usa los backups del proveedor de la base de datos como respaldo principal. Esto aplica especialmente si el backend corre en Render, Vercel Functions u otro entorno sin almacenamiento persistente.
 
-Solo habilita backups locales si el backend corre en un servidor con:
+La pantalla `Sistema > Backups` funciona en dos modos:
+
+- SQL local con `pg_dump`, cuando el servidor tiene PostgreSQL tools y almacenamiento persistente.
+- JSON portable, cuando no hay `pg_dump` o los backups locales SQL estan deshabilitados.
+
+El JSON portable ayuda para revision o rescate controlado, pero no reemplaza un backup formal del proveedor de base de datos.
+
+Solo habilita backups SQL locales si el backend corre en un servidor con:
 
 - `pg_dump` instalado.
 - `PG_DUMP_PATH` configurado o `pg_dump` disponible en `PATH`.
 - almacenamiento persistente para `BACKUP_DIR`.
 - `ENABLE_LOCAL_BACKUPS=true`.
+
+Variables relacionadas:
+
+- `ENABLE_LOCAL_BACKUPS=true`: permite backup SQL con `pg_dump` en produccion si el servidor esta preparado.
+- `DISABLE_LOCAL_BACKUPS=true`: fuerza backup portable JSON.
+- `DISABLE_BACKUPS=true`: desactiva la creacion de backups desde la app.
 
 Crear backup desde CLI:
 
@@ -285,6 +302,18 @@ git status
 ```
 
 Confirma que no aparezcan `.env`, backups ni uploads. Para deploy, configura variables de entorno en la plataforma y ejecuta migraciones antes de abrir el acceso a usuarios reales.
+
+Orden recomendado para publicar cambios:
+
+1. Revisar `git status`.
+2. Confirmar que no hay secretos, `.env`, backups, uploads ni logs versionados.
+3. Ejecutar pruebas y builds.
+4. Hacer backup de la base real.
+5. Subir cambios a GitHub.
+6. Ejecutar migraciones en el backend desplegado.
+7. Verificar `/api/health`, login, permisos, dashboard y un flujo de factura/pago.
+
+Guia operativa: `OPERATIONS_RUNBOOK.md`.
 
 ## Checklist
 

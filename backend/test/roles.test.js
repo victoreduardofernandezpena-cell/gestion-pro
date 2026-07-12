@@ -9,7 +9,10 @@ test("admin can access every permission", () => {
 
 test("ventas has sales and loyalty permissions only", () => {
   assert.equal(roleHasPermission("ventas", "clients:read"), true);
+  assert.equal(roleHasPermission("ventas", "clients:write"), true);
   assert.equal(roleHasPermission("ventas", "invoices:create"), true);
+  assert.equal(roleHasPermission("ventas", "products:write"), false);
+  assert.equal(roleHasPermission("ventas", "accounts-receivable:read"), true);
   assert.equal(roleHasPermission("ventas", "bank:write"), false);
 });
 

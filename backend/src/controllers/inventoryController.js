@@ -2,6 +2,7 @@ import prisma from "../prisma.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { requireCompanyId } from "../utils/companyScope.js";
 import { findManyMaybePaginated } from "../utils/pagination.js";
+import { buildInventoryOriginLabel, parseInventoryDateRange } from "../utils/inventoryTraceability.js";
 
 export const listInventory = async (req, res, next) => {
   try {
@@ -126,14 +127,17 @@ export const listInventoryMovements = async (req, res, next) => {
     const warehouseId = req.query.warehouseId ? Number(req.query.warehouseId) : undefined;
     const type = req.query.type;
     const reference = req.query.reference?.trim();
-    const startDate = req.query.startDate ? new Date(`${req.query.startDate}T00:00:00.000Z`) : null;
-    const endDate = req.query.endDate ? new Date(`${req.query.endDate}T23:59:59.999Z`) : null;
+    const document = req.query.document?.trim();
+    const { startDate, endDate } = parseInventoryDateRange(req.query);
+    if (req.query.warehouseId && (!Number.isInteger(warehouseId) || warehouseId <= 0)) return res.status(400).json({ message: "Almacen invalido" });
+    if (type && !["ENTRADA", "SALIDA", "AJUSTE"].includes(type)) return res.status(400).json({ message: "Tipo de movimiento invalido" });
     const movements = await findManyMaybePaginated(prisma.inventoryMovement, {
       where: {
         companyId,
         ...(warehouseId ? { warehouseId } : {}),
         ...(type ? { type } : {}),
         ...(reference ? { reference: { contains: reference, mode: "insensitive" } } : {}),
+        ...(document ? { document: { contains: document, mode: "insensitive" } } : {}),
         ...(startDate || endDate ? { createdAt: { ...(startDate ? { gte: startDate } : {}), ...(endDate ? { lte: endDate } : {}) } } : {}),
         ...(product
           ? {
@@ -157,7 +161,9 @@ export const listInventoryMovements = async (req, res, next) => {
       orderBy: { createdAt: "desc" }
     }, req.query);
 
-    res.json(movements);
+    const decorate = (rows) => rows.map((movement) => ({ ...movement, originLabel: buildInventoryOriginLabel(movement) }));
+    if (Array.isArray(movements)) return res.json(decorate(movements));
+    res.json({ ...movements, data: decorate(movements.data) });
   } catch (error) {
     next(error);
   }

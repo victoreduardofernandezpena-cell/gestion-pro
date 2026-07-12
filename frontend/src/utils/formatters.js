@@ -1,21 +1,5 @@
-export const formatCurrency = (value) =>
-  new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" }).format(Number(value || 0));
+import { formatDate, formatDateTime, formatNumber, money } from "./format";
 
-export const formatNumber = (value) =>
-  new Intl.NumberFormat("es-DO", { maximumFractionDigits: 2 }).format(Number(value || 0));
+export const formatCurrency = (value) => money.format(value);
 
-export const formatDate = (value) => {
-  if (!value) return "";
-  return new Date(value).toLocaleDateString("es-DO", { year: "numeric", month: "short", day: "2-digit" });
-};
-
-export const formatDateTime = (value) => {
-  if (!value) return "";
-  return new Date(value).toLocaleString("es-DO", {
-    year: "numeric",
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit"
-  });
-};
+export { formatDate, formatDateTime, formatNumber };

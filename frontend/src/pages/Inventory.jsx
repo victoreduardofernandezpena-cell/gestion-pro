@@ -9,12 +9,12 @@ import EmptyState from "../components/EmptyState";
 import FormField from "../components/FormField";
 import { ActionBar, FormCard, FormGrid, FormPageLayout, FormSection } from "../components/FormLayout";
 import { getErrorMessage } from "../utils/errors";
+import { formatDate, money } from "../utils/format";
 import { DEFAULT_PAGINATION, normalizePaginatedResult } from "../utils/pagination";
 
 const emptyMovement = { productId: "", warehouseId: "", type: "ENTRADA", quantity: 1, cost: "", reference: "", document: "", lotNumber: "", serialNumber: "", expirationDate: "", reason: "" };
-const emptyMovementFilters = { product: "", warehouseId: "", type: "", reference: "", startDate: "", endDate: "" };
+const emptyMovementFilters = { product: "", warehouseId: "", type: "", reference: "", document: "", startDate: "", endDate: "" };
 const emptyInventoryFilters = { search: "", status: "ALL", tracking: "ALL" };
-const money = new Intl.NumberFormat("es-DO", { style: "currency", currency: "DOP" });
 
 export default function Inventory() {
   const [inventory, setInventory] = useState([]);
@@ -167,9 +167,10 @@ export default function Inventory() {
     { key: "cost", header: "Costo", align: "right", render: (movement) => movement.cost ? money.format(Number(movement.cost)) : "-" },
     { key: "reference", header: "Referencia", render: (movement) => movement.reference || "-" },
     { key: "document", header: "Documento", render: (movement) => movement.document || "-" },
+    { key: "originLabel", header: "Origen", render: (movement) => movement.originLabel || "-" },
     { key: "lotNumber", header: "Lote", render: (movement) => movement.lotNumber || "-" },
     { key: "serialNumber", header: "Serie", render: (movement) => movement.serialNumber || "-" },
-    { key: "expirationDate", header: "Vence", render: (movement) => movement.expirationDate ? new Date(movement.expirationDate).toLocaleDateString("es-DO") : "-" },
+    { key: "expirationDate", header: "Vence", render: (movement) => formatDate(movement.expirationDate) },
     { key: "note", header: "Nota", render: (movement) => movement.note || movement.reason || "-" }
   ];
 
@@ -259,7 +260,7 @@ export default function Inventory() {
 
       <FormCard title="Historial de movimientos" description="Consulta movimientos recientes por producto, almacen, tipo, referencia o fecha.">
         <form onSubmit={submitMovementFilters} className="mb-5 space-y-5">
-          <FormGrid columns="xl:grid-cols-6">
+          <FormGrid columns="xl:grid-cols-7">
             <FormField label="Producto" value={movementFilters.product} onChange={(value) => setMovementFilters({ ...movementFilters, product: value })} placeholder="Nombre, codigo, SKU" />
             <FormField label="Almacen" as="select" value={movementFilters.warehouseId} onChange={(value) => setMovementFilters({ ...movementFilters, warehouseId: value })}>
               <option value="">Todos</option>
@@ -274,6 +275,7 @@ export default function Inventory() {
               <option value="AJUSTE">Ajuste</option>
             </FormField>
             <FormField label="Referencia" value={movementFilters.reference} onChange={(value) => setMovementFilters({ ...movementFilters, reference: value })} />
+            <FormField label="Documento" value={movementFilters.document} onChange={(value) => setMovementFilters({ ...movementFilters, document: value })} />
             <FormField label="Fecha inicio" type="date" value={movementFilters.startDate} onChange={(value) => setMovementFilters({ ...movementFilters, startDate: value })} />
             <FormField label="Fecha fin" type="date" value={movementFilters.endDate} onChange={(value) => setMovementFilters({ ...movementFilters, endDate: value })} />
           </FormGrid>
@@ -340,7 +342,7 @@ function InventoryAlertsPanel({ alerts }) {
                 <p className="font-semibold">{block.movement ? `${row.product?.code || "-"} - ${row.product?.name || "-"}` : `${row.code} - ${row.name}`}</p>
                 <p className="opacity-80">
                   {block.movement
-                    ? `Vence: ${row.expirationDate ? new Date(row.expirationDate).toLocaleDateString("es-DO") : "-"}`
+                    ? `Vence: ${formatDate(row.expirationDate)}`
                     : `Stock: ${row.stock} | Min: ${row.minimumStock}`}
                 </p>
               </div>

@@ -8,6 +8,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] No aparece texto `undefined`, `NaN` ni mensajes tecnicos confusos.
 - [ ] Los errores muestran mensajes claros para el usuario.
 - [ ] Las tablas, formularios, modales y graficos cargan con pocos datos y con cero datos.
+- [ ] Si una pantalla falla por un error inesperado, se muestra una pantalla de recuperacion y no queda todo en blanco.
 - [ ] Los listados con muchos registros permiten navegar sin cargar todo de golpe cuando hay paginacion disponible.
 - [ ] Las acciones sensibles quedan registradas en auditoria cuando aplica.
 
@@ -90,6 +91,8 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Registrar ajuste con motivo.
 - [ ] Ver historial de movimientos.
 - [ ] Filtros por producto/almacen funcionan.
+- [ ] Filtro por documento encuentra movimientos de factura, compra, reverso o ajuste.
+- [ ] Movimientos automaticos muestran origen/documento/referencia/costo cuando aplica.
 - [ ] Busqueda y paginacion de inventario no mezclan productos de otra empresa.
 
 ## Almacenes
@@ -212,6 +215,7 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Exportar CSV/Excel cuando aplique.
 - [ ] Exportar o imprimir PDF cuando aplique.
 - [ ] No aparecen totales `NaN` con cero datos.
+- [ ] Reportes muy grandes piden filtros antes de exportar o cargar demasiado.
 
 ## Seguridad, usuarios y auditoria
 
@@ -270,3 +274,11 @@ Usa este checklist en un entorno controlado con una base de datos de prueba o pi
 - [ ] Revisar permisos finales por rol.
 - [ ] Crear backup antes de pruebas con datos reales.
 - [ ] Probar restauracion en ambiente aparte.
+
+## Backups y recuperacion
+
+- [ ] Sistema > Backups muestra el estado del modo disponible.
+- [ ] En local con `pg_dump`, crear un backup SQL.
+- [ ] En entorno sin `pg_dump`, crear un backup portable JSON y descargarlo.
+- [ ] Confirmar que la restauracion automatica sigue bloqueada por seguridad.
+- [ ] Confirmar que existe un backup formal del proveedor de PostgreSQL antes de probar con datos reales.

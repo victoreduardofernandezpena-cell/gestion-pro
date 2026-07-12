@@ -165,6 +165,7 @@ export default function InvoiceDetail() {
     { key: "paymentDate", header: "Fecha", render: (row) => formatDate(row.paymentDate) },
     { key: "amount", header: "Monto", render: (row) => money.format(Number(row.amount)) },
     { key: "method", header: "Metodo", render: (row) => paymentMethodLabels[row.method] },
+    { key: "financialTarget", header: "Destino", render: (row) => row.financialTarget?.path ? <Link to={row.financialTarget.path} className="font-semibold text-accent hover:underline">{row.financialTarget.label}</Link> : row.financialTargetLabel || "-" },
     { key: "reference", header: "Referencia" },
     { key: "notes", header: "Notas" }
   ];

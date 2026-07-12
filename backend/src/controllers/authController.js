@@ -4,6 +4,7 @@ import prisma from "../prisma.js";
 import { createAuditLog } from "../utils/auditLogger.js";
 import { generateCompanyCode, normalizeCompanyCode } from "../utils/companyCode.js";
 import { validatePasswordPolicy } from "../utils/passwordPolicy.js";
+import { validateJwtSecret } from "../utils/security.js";
 
 const serializeCompany = (company) => ({
   id: company.id,
@@ -107,23 +108,17 @@ const ensureCompanyDefaults = async (tx, company, payload = {}) => {
 };
 
 const buildToken = ({ user, company, role }) => {
-  if (!process.env.JWT_SECRET) {
-    const error = new Error("JWT_SECRET no esta configurado en el servidor");
-    error.status = 500;
-    throw error;
-  }
+  const jwtSecret = validateJwtSecret();
 
   return jwt.sign(
     {
       id: user.id,
       userId: user.id,
-      email: user.email,
       companyId: company.id,
       companyCode: company.code,
-      companyName: company.tradeName || company.name,
       role
     },
-    process.env.JWT_SECRET,
+    jwtSecret,
     { expiresIn: process.env.JWT_EXPIRES_IN || "8h" }
   );
 };
